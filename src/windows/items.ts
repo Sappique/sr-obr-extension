@@ -10,7 +10,7 @@ import {
   PathCommand,
   Vector2,
 } from "@owlbear-rodeo/sdk";
-import { Cmd, diamondPoints, drawRoutes, FlowSegment, flowSegments, Pt, polygon } from "../core/geometry";
+import { Cmd, diamondPoints, FlowSegment, flowSegments, polygon, Pt, RoutedLink, routePorts } from "../core/geometry";
 import { COLOR, UI_SCALE, WindowTokens } from "../core/style";
 import { Part, PartLayer, WindowSpec } from "./layout";
 
@@ -25,7 +25,7 @@ export const LINKS_KEY = `${ID}/links`;
 export const ROUTE_KEY = `${ID}/route`;
 /** Scene metadata: the global window scale. */
 export const UI_SCALE_KEY = `${ID}/uiScale`;
-/** Scene metadata: animated connector dashes (default on). */
+/** Per-browser: animated connector dashes (default on). Also the live broadcast channel. */
 export const ANIMATED_KEY = `${ID}/animatedLinks`;
 /** On connector line items: what each client needs to draw the animation. */
 export const FLOW_KEY = `${ID}/flow`;
@@ -39,12 +39,24 @@ export interface RenderState {
   height: number;
 }
 export interface Link {
-  a: string;
-  b: string;
+  from: string;
+  to: string;
 }
 
-export function readAnimated(metadata: Record<string, unknown>): boolean {
-  return metadata[ANIMATED_KEY] !== false;
+export function readAnimated(): boolean {
+  try {
+    return localStorage.getItem(ANIMATED_KEY) !== "false";
+  } catch {
+    return true;
+  }
+}
+
+export function writeAnimated(on: boolean) {
+  try {
+    localStorage.setItem(ANIMATED_KEY, String(on));
+  } catch {
+    // Blocked storage: the setting lasts for this session only.
+  }
 }
 
 export function readUiScale(metadata: Record<string, unknown>): number {
@@ -128,15 +140,15 @@ export interface NetworkInfo {
   shown: boolean;
 }
 
+export const EMPTY_PATH: Cmd[] = [[0, 0, 0]];
 export const netInfo = (item: Item) => item.metadata[NET_KEY] as NetworkInfo;
-const EMPTY: Cmd[] = [[0, 0, 0]];
+const EMPTY = EMPTY_PATH;
 
-export function networkCommands(routes: Pt[][], t: WindowTokens) {
-  const { line, ports } = drawRoutes(routes);
+export function networkCommands(routes: RoutedLink[], t: WindowTokens) {
+  const ports = routePorts(routes);
   const r = t.connector.portRadius;
   return {
     flow: flowSegments(routes),
-    line: line.length ? line : EMPTY,
     ports: ports.length ? ports.flatMap(([x, y]) => polygon(diamondPoints(x, y, r))) : EMPTY,
   };
 }
@@ -152,10 +164,8 @@ export function buildNetwork(links: Link[], t: WindowTokens): Item[] {
       .position({ x: 0, y: 0 })
       .commands(toObr(EMPTY))
       .fillOpacity(0)
-      .strokeColor(COLOR.yellow)
-      .strokeOpacity(c.opacity)
-      .strokeWidth(c.width)
-      .strokeDash(c.dash)
+      .strokeOpacity(0)
+      .strokeWidth(0)
       .layer("DRAWING")
       .locked(true)
       .disableHit(true)
@@ -190,7 +200,6 @@ export function buildNetwork(links: Link[], t: WindowTokens): Item[] {
 // own from the data the GM stores on the connector line items.
 
 export interface FlowData {
-  animated: boolean;
   width: number;
   dash: number;
   gap: number;
@@ -209,6 +218,7 @@ uniform float startPhase;
 uniform float dashLength;
 uniform float gapLength;
 uniform float lineOpacity;
+uniform float flowSpeed;
 uniform vec3 lineColor;
 
 half4 main(float2 coord) {
@@ -216,7 +226,7 @@ half4 main(float2 coord) {
   if (reversed > 0.5) along = segLength - along;
   float cycle = dashLength + gapLength;
   // Two dash cycles per 1.4 s, as in design 14. fract() keeps the value small.
-  float shift = fract(time / 1.4) * 2.0 * cycle;
+  float shift = fract(time / 1.4) * 2.0 * cycle * flowSpeed;
   float u = mod(startPhase + along - shift, cycle);
   float a = (u < dashLength ? 1.0 : 0.0) * lineOpacity;
   return half4(lineColor * a, a);
@@ -225,7 +235,7 @@ half4 main(float2 coord) {
 
 const YELLOW = { x: 245 / 255, y: 225 / 255, z: 10 / 255 };
 
-export function buildFlowEffect(segment: FlowSegment, data: FlowData, opacity: number, key: string) {
+export function buildFlowEffect(segment: FlowSegment, data: FlowData, opacity: number, speed: number, key: string) {
   const { x0, y0, x1, y1, phase } = segment;
   const horizontal = y0 === y1;
   const length = Math.abs(horizontal ? x1 - x0 : y1 - y0);
@@ -248,6 +258,7 @@ export function buildFlowEffect(segment: FlowSegment, data: FlowData, opacity: n
       { name: "dashLength", value: data.dash },
       { name: "gapLength", value: data.gap },
       { name: "lineOpacity", value: opacity },
+      { name: "flowSpeed", value: speed },
       { name: "lineColor", value: YELLOW },
     ])
     .layer("DRAWING")

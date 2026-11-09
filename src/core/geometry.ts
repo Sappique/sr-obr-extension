@@ -150,6 +150,8 @@ export interface RouteOptions {
   /** The shadow falls this far to the left and down. */
   shadow: number;
   bendCost: number;
+  /** Spacing between opposing directions at one window side. */
+  portGap: number;
 }
 
 interface Rect {
@@ -183,7 +185,7 @@ const STEP = [
   [0, -1],
 ];
 const TRUNK_DISCOUNT = 0.6;
-const CLEARANCE_RETRIES = [1, 0.25];
+const ROUTE_ATTEMPTS: [number, boolean][] = [[1, true], [0.25, true], [1, false], [0.25, false]];
 
 function sortedUnique(values: number[]): number[] {
   return [...new Set(values)].sort((a, b) => a - b);
@@ -229,6 +231,13 @@ class Heap {
   }
 }
 
+interface Stretch {
+  horizontal: boolean;
+  fixed: number;
+  lo: number;
+  hi: number;
+}
+
 interface Trunk {
   vertical: boolean;
   at: number;
@@ -237,10 +246,11 @@ interface Trunk {
 /** Right-angle shortest path over a grid of obstacle edges; null if there is none. */
 function searchPath(
   start: Pt, startDir: number, end: Pt, endDir: number,
-  rects: Rect[], trunk: Trunk, bendCost: number,
+  rects: Rect[], trunk: Trunk, bendCost: number, lane: number, forbidden: Stretch[],
 ): Pt[] | null {
-  const xs = sortedUnique([start[0], end[0], ...rects.flatMap((q) => [q.x0, q.x1]), ...(trunk.vertical ? [trunk.at] : [])]);
-  const ys = sortedUnique([start[1], end[1], ...rects.flatMap((q) => [q.y0, q.y1]), ...(trunk.vertical ? [] : [trunk.at])]);
+  // Lines one lane outside each obstacle give opposing links somewhere to go.
+  const xs = sortedUnique([start[0], end[0], ...rects.flatMap((q) => [q.x0, q.x1, r1(q.x0 - lane), r1(q.x1 + lane)]), ...(trunk.vertical ? [trunk.at] : [])]);
+  const ys = sortedUnique([start[1], end[1], ...rects.flatMap((q) => [q.y0, q.y1, r1(q.y0 - lane), r1(q.y1 + lane)]), ...(trunk.vertical ? [] : [trunk.at])]);
   const nx = xs.length;
   const ny = ys.length;
   const cell = (i: number, j: number) => i + j * nx;
@@ -252,6 +262,17 @@ function searchPath(
         if (i + 1 < nx && ys[j] > q.y0 && ys[j] < q.y1 && xs[i] >= q.x0 && xs[i + 1] <= q.x1) blocked[0][cell(i, j)] = 1;
         if (j + 1 < ny && xs[i] > q.x0 && xs[i] < q.x1 && ys[j] >= q.y0 && ys[j + 1] <= q.y1) blocked[1][cell(i, j)] = 1;
       }
+    }
+  }
+  for (const f of forbidden) {
+    if (f.horizontal) {
+      const j = ys.indexOf(f.fixed);
+      if (j < 0) continue;
+      for (let i = 0; i + 1 < nx; i++) if (xs[i + 1] > f.lo && xs[i] < f.hi) blocked[0][cell(i, j)] = 1;
+    } else {
+      const i = xs.indexOf(f.fixed);
+      if (i < 0) continue;
+      for (let j = 0; j + 1 < ny; j++) if (ys[j + 1] > f.lo && ys[j] < f.hi) blocked[1][cell(i, j)] = 1;
     }
   }
   const si = xs.indexOf(start[0]);
@@ -333,19 +354,70 @@ const lineIsFree = (trunk: Trunk, from: number, to: number, rects: Rect[]) =>
       : trunk.at > q.y0 && trunk.at < q.y1 && Math.max(from, to) > q.x0 && Math.min(from, to) < q.x1,
   );
 
+/** Which end the old undirected routing treated as the hub, as `a` (true) or `b`. */
+export function legacyHubIsA(links: LinkBoxes[]): boolean[] {
+  const counts = new Map<Box, Partial<Record<Side, number>>>();
+  const bump = (box: Box, side: Side) => {
+    const sides = counts.get(box) ?? {};
+    sides[side] = (sides[side] ?? 0) + 1;
+    counts.set(box, sides);
+  };
+  const pairs = links.map((link) => {
+    const c = classify(link);
+    const sides: [Side, Side] = c.horizontal ? ["right", "left"] : ["bottom", "top"];
+    bump(c.first, sides[0]);
+    bump(c.second, sides[1]);
+    return { link, ...c, sides };
+  });
+  return pairs.map(({ link, first, second, sides }) => {
+    const fc = counts.get(first)![sides[0]]!;
+    const sc = counts.get(second)![sides[1]]!;
+    const hub = fc > sc || (fc === sc && first.x <= second.x) ? first : second;
+    return hub === link.a;
+  });
+}
+
+export interface RoutedLink {
+  /** Always from the link's `a` (from) to its `b` (to). */
+  points: Pt[];
+  /** Measure dash phase back from the target, where several links converge. */
+  fromEnd: boolean;
+}
+
+type Channel = "out" | "in";
+
+function stretches(points: Pt[]): Stretch[] {
+  return points.slice(1).map((q, i) => {
+    const p = points[i];
+    const horizontal = r1(p[1]) === r1(q[1]);
+    const axis = horizontal ? 0 : 1;
+    return {
+      horizontal,
+      fixed: r1(p[1 - axis]),
+      lo: Math.min(r1(p[axis]), r1(q[axis])),
+      hi: Math.max(r1(p[axis]), r1(q[axis])),
+    };
+  });
+}
+
 /**
- * One polyline per link, in the given order. Each window side has one port
- * and one trunk; links run around the obstacle windows and fall back to the
- * direct route when no way around exists. Deterministic for equal input.
+ * Directed routing: `a` is the from window, `b` the to window. Links may share
+ * a stretch only when they leave the same side of one window or enter the same
+ * side of one window. A side with both directions gets a port and a trunk per
+ * direction. Links route around the obstacle windows; deterministic for equal
+ * input, earlier links keep their way and later ones go around them.
  */
-export function routeLinks(links: LinkBoxes[], obstacles: Box[], o: RouteOptions): Pt[][] {
+export function routeLinks(links: LinkBoxes[], obstacles: Box[], o: RouteOptions): RoutedLink[] {
   const rects = obstacles.map((box) => inflate(box, o));
   type Stat = { count: number; gap: number; low: number; high: number; trunk?: number };
-  const stats = new Map<Box, Partial<Record<Side, Stat>>>();
-  const statOf = (box: Box, side: Side): Stat => {
-    const sides = stats.get(box) ?? {};
+  const stats = new Map<Box, Map<string, Stat>>();
+  const statOf = (box: Box, side: Side, channel: Channel): Stat => {
+    const sides = stats.get(box) ?? new Map<string, Stat>();
     stats.set(box, sides);
-    return (sides[side] ??= { count: 0, gap: Infinity, low: Infinity, high: -Infinity });
+    const key = `${side}:${channel}`;
+    const stat = sides.get(key) ?? { count: 0, gap: Infinity, low: Infinity, high: -Infinity };
+    sides.set(key, stat);
+    return stat;
   };
 
   const pairs = links.map((link) => {
@@ -355,39 +427,57 @@ export function routeLinks(links: LinkBoxes[], obstacles: Box[], o: RouteOptions
       0,
       horizontal ? second.x - (first.x + first.w) : second.y - (first.y + first.h),
     );
-    const p = portOf(first, sides[0], o.sideOffset);
-    const q = portOf(second, sides[1], o.sideOffset);
-    for (const [box, side] of [[first, sides[0]], [second, sides[1]]] as [Box, Side][]) {
-      const stat = statOf(box, side);
-      stat.count++;
-      stat.gap = Math.min(stat.gap, gap);
-    }
-    return { first, second, horizontal, sides, p, q };
+    const fromSide = link.a === first ? sides[0] : sides[1];
+    const toSide = link.a === first ? sides[1] : sides[0];
+    const out = statOf(link.a, fromSide, "out");
+    const into = statOf(link.b, toSide, "in");
+    out.count++;
+    into.count++;
+    out.gap = Math.min(out.gap, gap);
+    into.gap = Math.min(into.gap, gap);
+    return { from: link.a, to: link.b, horizontal, fromSide, toSide, out, into };
   });
 
+  const opposing = (box: Box, side: Side) =>
+    statOf(box, side, "out").count > 0 && statOf(box, side, "in").count > 0;
+
+  /** Where a direction meets a window side; opposing directions get separate ports. */
+  const port = (box: Box, side: Side, channel: Channel): Pt => {
+    const [x, y] = portOf(box, side, o.sideOffset);
+    if (channel === "out" || !opposing(box, side)) return [r1(x), r1(y)];
+    if (side === "left" || side === "right") {
+      return [r1(x), r1(Math.min(y + o.portGap, box.y + box.h - o.portGap / 2))];
+    }
+    return [r1(x - o.portGap), r1(y)];
+  };
+
   const anchored = pairs.map((pair) => {
-    const fs = statOf(pair.first, pair.sides[0]);
-    const ss = statOf(pair.second, pair.sides[1]);
+    const p = port(pair.from, pair.fromSide, "out");
+    const q = port(pair.to, pair.toSide, "in");
     // The trunk belongs to the busier end; on a tie, the left window.
-    const anchorFirst = fs.count > ss.count || (fs.count === ss.count && pair.first.x <= pair.second.x);
-    const stat = anchorFirst ? fs : ss;
+    const anchorFrom =
+      pair.out.count > pair.into.count ||
+      (pair.out.count === pair.into.count && pair.from.x <= pair.to.x);
+    const stat = anchorFrom ? pair.out : pair.into;
     const cross = pair.horizontal ? 1 : 0;
-    for (const v of [pair.p[cross], pair.q[cross]]) {
+    for (const v of [p[cross], q[cross]]) {
       stat.low = Math.min(stat.low, v);
       stat.high = Math.max(stat.high, v);
     }
-    return { ...pair, anchorFirst, stat };
+    return { ...pair, p, q, anchorFrom, stat };
   });
 
   /** A trunk position in free space: the default distance, or further out. */
   const trunkAt = (a: (typeof anchored)[number]): number => {
     if (a.stat.trunk !== undefined) return a.stat.trunk;
-    const side = a.anchorFirst ? a.sides[0] : a.sides[1];
-    const port = a.anchorFirst ? a.p : a.q;
-    const along = port[a.horizontal ? 0 : 1];
+    const box = a.anchorFrom ? a.from : a.to;
+    const side = a.anchorFrom ? a.fromSide : a.toSide;
+    const anchorPort = a.anchorFrom ? a.p : a.q;
+    const along = anchorPort[a.horizontal ? 0 : 1];
     const sign = side === "right" || side === "bottom" ? 1 : -1;
     const min = clearDistance(side, o);
-    const first = Math.max(min, Math.min(o.trunkOffset, a.stat.gap / 2));
+    const lane = !a.anchorFrom && opposing(box, side) ? o.portGap : 0;
+    const first = Math.max(min, Math.min(o.trunkOffset, a.stat.gap / 2)) + lane;
     const limit = Math.max(first, a.stat.gap);
     let chosen = r1(along + sign * first);
     for (let d = first; d <= limit; d += o.clearance) {
@@ -401,13 +491,22 @@ export function routeLinks(links: LinkBoxes[], obstacles: Box[], o: RouteOptions
     return chosen;
   };
 
+  const placed: { a: (typeof anchored)[number]; stretches: Stretch[] }[] = [];
   return anchored.map((a) => {
     const at = trunkAt(a);
-    const { p, q, sides, horizontal } = a;
+    const { p, q, fromSide, toSide, horizontal } = a;
     const direct: Pt[] = horizontal ? [p, [at, p[1]], [at, q[1]], q] : [p, [p[0], at], [q[0], at], q];
-    // Windows close together leave no room for the full margin: retry tighter.
+    const blockers = placed
+      .filter(
+        ({ a: other }) =>
+          !(other.from === a.from && other.fromSide === fromSide) &&
+          !(other.to === a.to && other.toSide === toSide),
+      )
+      .flatMap((other) => other.stretches);
+
+    // Tight spots: a smaller margin first, then allowing overlap, then direct.
     let path: Pt[] | null = null;
-    for (const factor of CLEARANCE_RETRIES) {
+    for (const [factor, forbidden] of ROUTE_ATTEMPTS) {
       const tight = { ...o, clearance: o.clearance * factor };
       const stub = (port: Pt, side: Side): Pt => {
         const d = clearDistance(side, tight);
@@ -415,62 +514,30 @@ export function routeLinks(links: LinkBoxes[], obstacles: Box[], o: RouteOptions
         return [r1(port[0] + dx * d), r1(port[1] + dy * d)];
       };
       path = searchPath(
-        stub(p, sides[0]), OUTWARD[sides[0]],
-        stub(q, sides[1]), OUTWARD[sides[0]],
+        stub(p, fromSide), OUTWARD[fromSide],
+        stub(q, toSide), OUTWARD[fromSide],
         obstacles.map((box) => inflate(box, tight)),
-        { vertical: horizontal, at }, o.bendCost,
+        { vertical: horizontal, at }, o.bendCost, o.portGap,
+        forbidden ? blockers : [],
       );
       if (path) break;
     }
     const points = simplify(path ? [p, ...path, q] : direct);
-    // Routes run outward from their hub; flow direction depends on this.
-    return a.anchorFirst ? points : points.reverse();
+    placed.push({ a, stretches: stretches(points) });
+    return { points, fromEnd: a.out.count === 1 && a.into.count > 1 };
   });
 }
 
-/**
- * Draws routes with every shared stretch exactly once: collinear pieces are
- * merged, so overlapping lines keep a single, regular dash pattern.
- */
-export function drawRoutes(routes: Pt[][]): { line: Cmd[]; ports: Pt[] } {
-  const r = (n: number) => Math.round(n * 10) / 10;
-  const horizontal = new Map<number, [number, number][]>();
-  const vertical = new Map<number, [number, number][]>();
-  const put = (map: Map<number, [number, number][]>, key: number, a: number, b: number) => {
-    if (a === b) return;
-    map.set(key, [...(map.get(key) ?? []), [Math.min(a, b), Math.max(a, b)]]);
-  };
+/** The distinct ports of a set of routes. */
+export function routePorts(routes: RoutedLink[]): Pt[] {
   const ports = new Map<string, Pt>();
-  for (const pts of routes) {
-    for (const end of [pts[0], pts[pts.length - 1]]) {
-      const port: Pt = [r(end[0]), r(end[1])];
+  for (const { points } of routes) {
+    for (const end of [points[0], points[points.length - 1]]) {
+      const port: Pt = [r1(end[0]), r1(end[1])];
       ports.set(port.join(), port);
     }
-    pts.slice(1).forEach((q, i) => {
-      const p = pts[i];
-      if (r(p[1]) === r(q[1])) put(horizontal, r(p[1]), r(p[0]), r(q[0]));
-      else put(vertical, r(p[0]), r(p[1]), r(q[1]));
-    });
   }
-  const line: Cmd[] = [];
-  const emit = (map: Map<number, [number, number][]>, at: (fixed: number, v: number) => Pt) => {
-    for (const fixed of [...map.keys()].sort((a, b) => a - b)) {
-      const spans = map.get(fixed)!.sort((a, b) => a[0] - b[0]);
-      let [start, end] = spans[0];
-      const flush = () => line.push([MOVE, ...at(fixed, start)], [LINE, ...at(fixed, end)]);
-      for (const [a, b] of spans.slice(1)) {
-        if (a <= end) end = Math.max(end, b);
-        else {
-          flush();
-          [start, end] = [a, b];
-        }
-      }
-      flush();
-    }
-  };
-  emit(horizontal, (y, x) => [x, y]);
-  emit(vertical, (x, y) => [x, y]);
-  return { line, ports: [...ports.values()] };
+  return [...ports.values()];
 }
 
 export interface FlowSegment {
@@ -483,13 +550,18 @@ export interface FlowSegment {
 }
 
 /**
- * Non-overlapping straight segments for animated lines, each running outward
- * from its hub. Where routes share a stretch, the first route owns it.
+ * Non-overlapping straight segments for animated lines, running from each
+ * link's from window to its to window. Within one direction on a stretch the
+ * first route owns it.
  */
-export function flowSegments(routes: Pt[][]): FlowSegment[] {
+export function flowSegments(routes: RoutedLink[]): FlowSegment[] {
   const claimed = new Map<string, [number, number][]>();
   const out: FlowSegment[] = [];
-  for (const pts of routes) {
+  for (const { points: pts, fromEnd } of routes) {
+    const total = pts.slice(1).reduce(
+      (sum, q, i) => sum + Math.abs(q[0] - pts[i][0]) + Math.abs(q[1] - pts[i][1]),
+      0,
+    );
     let distance = 0;
     pts.slice(1).forEach((end, i) => {
       const start = pts[i];
@@ -498,9 +570,9 @@ export function flowSegments(routes: Pt[][]): FlowSegment[] {
       const a = r1(start[axis]);
       const b = r1(end[axis]);
       const fixed = r1(start[1 - axis]);
-      const key = `${axis}:${fixed}`;
-      const taken = (claimed.get(key) ?? []).sort((p, q) => p[0] - q[0]);
       const forward = b >= a;
+      const key = `${axis}:${fixed}:${forward}`;
+      const taken = (claimed.get(key) ?? []).sort((p, q) => p[0] - q[0]);
       const free: [number, number][] = [];
       let cursor = Math.min(a, b);
       const high = Math.max(a, b);
@@ -514,7 +586,8 @@ export function flowSegments(routes: Pt[][]): FlowSegment[] {
         if (hi - lo < 0.05) continue;
         const from = forward ? lo : hi;
         const to = forward ? hi : lo;
-        const phase = r1(distance + Math.abs(from - a));
+        const along = distance + Math.abs(from - a);
+        const phase = r1(fromEnd ? along - total : along);
         out.push(
           horizontal
             ? { x0: from, y0: fixed, x1: to, y1: fixed, phase }

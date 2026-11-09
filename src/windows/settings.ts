@@ -1,8 +1,8 @@
 import OBR from "@owlbear-rodeo/sdk";
 import { UI_SCALE } from "../core/style";
-import { ANIMATED_KEY, readAnimated, readUiScale, UI_SCALE_KEY } from "./items";
+import { ANIMATED_KEY, readAnimated, readUiScale, UI_SCALE_KEY, writeAnimated } from "./items";
 
-/** Action popover. The GM sets the scale; players see it read-only. */
+/** Action popover. The GM sets the scale; animation is each viewer's own choice. */
 const slider = document.getElementById("scale") as HTMLInputElement;
 const value = document.getElementById("value") as HTMLOutputElement;
 const animated = document.getElementById("animated") as HTMLInputElement;
@@ -20,7 +20,6 @@ function show(scale: number) {
 function applyRole(role: string) {
   const gm = role === "GM";
   slider.disabled = !gm;
-  animated.disabled = !gm;
   notice.hidden = gm;
 }
 
@@ -36,23 +35,22 @@ OBR.onReady(async () => {
     void OBR.scene.setMetadata({ [UI_SCALE_KEY]: Number(slider.value) });
   });
 
+  animated.checked = readAnimated();
   animated.addEventListener("change", () => {
-    if (!animated.disabled) void OBR.scene.setMetadata({ [ANIMATED_KEY]: animated.checked });
+    writeAnimated(animated.checked);
+    void OBR.broadcast.sendMessage(ANIMATED_KEY, animated.checked, { destination: "LOCAL" });
   });
 
   const load = async (ready: boolean) => {
     slider.disabled = slider.disabled || !ready;
     if (ready) {
       applyRole(await OBR.player.getRole());
-      const metadata = await OBR.scene.getMetadata();
-      show(readUiScale(metadata));
-      animated.checked = readAnimated(metadata);
+      show(readUiScale(await OBR.scene.getMetadata()));
     }
   };
   OBR.scene.onReadyChange(load);
   await load(await OBR.scene.isReady());
   OBR.scene.onMetadataChange((metadata) => {
     if (document.activeElement !== slider) show(readUiScale(metadata));
-    animated.checked = readAnimated(metadata);
   });
 });

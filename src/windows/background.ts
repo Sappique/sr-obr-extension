@@ -1,13 +1,15 @@
 import OBR, { Curve, Item, Path, Vector2 } from "@owlbear-rodeo/sdk";
 import { Fonts, loadFonts } from "../core/fonts";
-import { Box, outlineMatches, routeLinks, windowOutline } from "../core/geometry";
+import { Box, legacyHubIsA, outlineMatches, routeLinks, windowOutline } from "../core/geometry";
 import { UI_SCALE, windowTokens } from "../core/style";
 import {
   buildFlowEffect,
   buildFrame,
   buildNetwork,
   buildPart,
+  ANIMATED_KEY,
   DEFAULT_SPEC,
+  EMPTY_PATH,
   FLOW_KEY,
   FLOW_ROLE,
   FlowData,
@@ -42,7 +44,7 @@ const MAX_PASSES = 5;
 
 let isGm = false;
 let uiScale: number = UI_SCALE.default;
-let animated = true;
+let animated = readAnimated();
 /** Last known top and height per frame, to undo the jump from a top handle. */
 const tops = new Map<string, TopMemory>();
 
@@ -194,6 +196,21 @@ async function sync(items: Item[]): Promise<boolean> {
   return linked || add.length + place.size + show.size + remove.length + fixes.size > 0;
 }
 
+/** Links stored before directions existed keep the way they were flowing. */
+function migrateLinks(
+  stored: (Partial<Link> & { a?: string; b?: string })[],
+  boxes: Map<string, Box>,
+): Link[] {
+  const old = stored.filter((l) => !l.from && l.a && l.b && boxes.has(l.a) && boxes.has(l.b));
+  const hubIsA = legacyHubIsA(old.map((l) => ({ a: boxes.get(l.a!)!, b: boxes.get(l.b!)! })));
+  const converted = new Map(old.map((l, i) => [l, hubIsA[i]]));
+  return stored.flatMap((l): Link[] => {
+    if (l.from && l.to) return [{ from: l.from, to: l.to }];
+    if (!converted.has(l)) return [];
+    return [converted.get(l) ? { from: l.a!, to: l.b! } : { from: l.b!, to: l.a! }];
+  });
+}
+
 let lastRouteInput = "";
 let lastDrawn: Record<"true" | "false", ReturnType<typeof networkCommands>> | null = null;
 
@@ -206,6 +223,7 @@ function routeOptions() {
     clearance: c.clearance,
     shadow: t.shadow.offset,
     bendCost: c.bendCost,
+    portGap: c.portGap,
   };
 }
 
@@ -221,15 +239,18 @@ async function syncConnectors(
   const master = net.find((i) => netInfo(i).kind === "line" && netInfo(i).shown);
   if (!master) return legacy.length > 0;
 
-  const stored = (master.metadata[LINKS_KEY] as Link[]) ?? [];
-  const links = stored.filter((l) => boxes.has(l.a) && boxes.has(l.b));
+  type StoredLink = Partial<Link> & { a?: string; b?: string };
+  const stored = (master.metadata[LINKS_KEY] as StoredLink[]) ?? [];
+  const migrated = migrateLinks(stored, boxes);
+  const links = migrated.filter((l) => boxes.has(l.from) && boxes.has(l.to));
   if (links.length === 0) {
     await OBR.scene.items.deleteItems(net.map((i) => i.id));
     return true;
   }
+  const linksChanged = JSON.stringify(links) !== JSON.stringify(stored);
 
-  const shownOf = (l: Link) => boxes.get(l.a)!.visible && boxes.get(l.b)!.visible;
-  const input = JSON.stringify([uiScale, animated, links.map((l) => [l.a, l.b]), [...boxes]]);
+  const shownOf = (l: Link) => boxes.get(l.from)!.visible && boxes.get(l.to)!.visible;
+  const input = JSON.stringify([uiScale, links, [...boxes]]);
   if (input !== lastRouteInput) {
     lastRouteInput = input;
     // Hidden windows never shape player-visible lines; that would reveal them.
@@ -239,7 +260,7 @@ async function syncConnectors(
         routeLinks(
           links
             .filter((l) => shownOf(l) === shown)
-            .map((l) => ({ a: boxes.get(l.a)!, b: boxes.get(l.b)! })),
+            .map((l) => ({ a: boxes.get(l.from)!, b: boxes.get(l.to)! })),
           obstacles,
           routeOptions(),
         ),
@@ -248,30 +269,32 @@ async function syncConnectors(
     lastDrawn = { true: pick(true), false: pick(false) };
   }
   const drawn = lastDrawn!;
-  const key = hashString(JSON.stringify([drawn, uiScale, animated]));
-  if (key === master.metadata[ROUTE_KEY] && links.length === stored.length) {
+  const key = hashString(JSON.stringify([drawn, uiScale]));
+  if (key === master.metadata[ROUTE_KEY] && !linksChanged) {
     return legacy.length > 0;
   }
 
   await OBR.scene.items.updateItems<Path>(net.map((i) => i.id), (drafts) => {
     for (const draft of drafts) {
       const info = netInfo(draft);
-      draft.commands = toObr(drawn[info.shown ? "true" : "false"][info.kind === "line" ? "line" : "ports"]);
+      const set = drawn[info.shown ? "true" : "false"];
+      draft.commands = toObr(info.kind === "line" ? EMPTY_PATH : set.ports);
       const c = windowTokens(uiScale).connector;
-      draft.style.strokeWidth = c.width;
       if (info.kind === "line") {
-        draft.style.strokeDash = c.dash;
-        // The Effects replace the static dashes while animation is on.
-        draft.style.strokeOpacity = animated ? 0 : c.opacity;
+        // A data carrier now: every client draws the line as local Effects.
+        draft.style.strokeOpacity = 0;
+        draft.style.strokeWidth = 0;
         draft.metadata[FLOW_KEY] = {
-          animated,
           width: c.width,
           dash: c.dash[0],
           gap: c.dash[1],
           opacity: c.opacity,
-          segments: drawn[info.shown ? "true" : "false"].flow,
+          segments: set.flow,
         } satisfies FlowData;
-      } else draft.layer = PORT_LAYER;
+      } else {
+        draft.style.strokeWidth = c.width;
+        draft.layer = PORT_LAYER;
+      }
       if (draft.id === master.id) {
         draft.metadata[LINKS_KEY] = links;
         draft.metadata[ROUTE_KEY] = key;
@@ -315,11 +338,12 @@ async function syncFlow(items: Item[]) {
     if (roleOf(item) !== "network" || netInfo(item).kind !== "line") continue;
     const { shown } = netInfo(item);
     const data = item.metadata[FLOW_KEY] as FlowData | undefined;
-    if (!data?.animated || (!shown && !isGm)) continue;
+    if (!data?.segments || (!shown && !isGm)) continue;
     const opacity = shown ? data.opacity : data.opacity * 0.5;
     for (const segment of data.segments) {
-      const key = hashString(JSON.stringify([segment, data.width, data.dash, data.gap, opacity]));
-      wanted.set(key, () => buildFlowEffect(segment, data, opacity, key));
+      const speed = animated ? 1 : 0;
+      const key = hashString(JSON.stringify([segment, data.width, data.dash, data.gap, opacity, speed]));
+      wanted.set(key, () => buildFlowEffect(segment, data, opacity, speed, key));
     }
   }
   const signature = [...wanted.keys()].sort().join();
@@ -382,45 +406,107 @@ function createContextMenu() {
     ],
     async onClick(context) {
       const [a, b] = context.items;
-      const net = await OBR.scene.items.getItems((i) => roleOf(i) === "network");
-      const master = net.find((i) => netInfo(i).kind === "line" && netInfo(i).shown);
+      const master = await findMaster();
+      // The SDK doesn't promise a selection order, so the left window is the source.
+      const [left, right] = a.position.x <= b.position.x ? [a, b] : [b, a];
       if (!master) {
-        await OBR.scene.items.addItems(buildNetwork([{ a: a.id, b: b.id }], windowTokens(uiScale)));
+        await OBR.scene.items.addItems(
+          buildNetwork([{ from: left.id, to: right.id }], windowTokens(uiScale)),
+        );
         return;
       }
-      await OBR.scene.items.updateItems([master.id], (drafts) => {
-        const links = (drafts[0].metadata[LINKS_KEY] as Link[]) ?? [];
-        const others = links.filter(
-          (l) => !((l.a === a.id && l.b === b.id) || (l.a === b.id && l.b === a.id)),
-        );
+      await editLinks(master.id, (links) => {
+        const others = links.filter((l) => !samePair(l, a.id, b.id));
         // Choosing it again on a connected pair removes the connection.
-        drafts[0].metadata[LINKS_KEY] =
-          others.length === links.length ? [...links, { a: a.id, b: b.id }] : others;
-        drafts[0].metadata[ROUTE_KEY] = "";
+        return others.length === links.length
+          ? [...links, { from: left.id, to: right.id }]
+          : others;
       });
+    },
+  });
+}
+
+const samePair = (l: Link, a: string, b: string) =>
+  (l.from === a && l.to === b) || (l.from === b && l.to === a);
+
+async function findMaster() {
+  const net = await OBR.scene.items.getItems((i) => roleOf(i) === "network");
+  return net.find((i) => netInfo(i).kind === "line" && netInfo(i).shown);
+}
+
+async function editLinks(masterId: string, change: (links: Link[]) => Link[]) {
+  await OBR.scene.items.updateItems([masterId], (drafts) => {
+    drafts[0].metadata[LINKS_KEY] = change((drafts[0].metadata[LINKS_KEY] as Link[]) ?? []);
+    drafts[0].metadata[ROUTE_KEY] = "";
+  });
+}
+
+// "Reverse direction" exists only while exactly a linked pair is selected;
+// context menu filters can't express a relation between two items.
+const REVERSE_ID = `${ID}/reverse`;
+let selection: string[] = [];
+let knownLinks: Link[] = [];
+let reverseShown = false;
+
+function refreshReverseMenu() {
+  const [a, b] = selection;
+  const show = isGm && selection.length === 2 && knownLinks.some((l) => samePair(l, a, b));
+  if (show === reverseShown) return;
+  reverseShown = show;
+  if (!show) {
+    void OBR.contextMenu.remove(REVERSE_ID);
+    return;
+  }
+  void OBR.contextMenu.create({
+    id: REVERSE_ID,
+    icons: [
+      {
+        icon: ICON("reverse"),
+        label: "Reverse direction",
+        filter: { min: 2, max: 2, roles: ["GM"], every: [frameFilter] },
+      },
+    ],
+    async onClick(context) {
+      const [a, b] = context.items;
+      const master = await findMaster();
+      if (!master) return;
+      await editLinks(master.id, (links) =>
+        links.map((l) => (samePair(l, a.id, b.id) ? { from: l.to, to: l.from } : l)),
+      );
     },
   });
 }
 
 OBR.onReady(async () => {
   isGm = (await OBR.player.getRole()) === "GM";
+  selection = (await OBR.player.getSelection()) ?? [];
   OBR.player.onChange((player) => {
     isGm = player.role === "GM";
+    selection = player.selection ?? [];
+    refreshReverseMenu();
   });
   const onItems = (items: Item[]) => {
+    const master = items.find(
+      (i) => roleOf(i) === "network" && netInfo(i).kind === "line" && netInfo(i).shown,
+    );
+    knownLinks = (master?.metadata[LINKS_KEY] as Link[] | undefined) ?? [];
+    refreshReverseMenu();
     schedule(items);
     scheduleFlow(items);
   };
+  // This viewer's own animation setting, from the options popover.
+  OBR.broadcast.onMessage(ANIMATED_KEY, async (event) => {
+    animated = event.data === true;
+    if (await OBR.scene.isReady()) scheduleFlow(await OBR.scene.items.getItems());
+  });
   createTool();
   createContextMenu();
 
   // A new scale relays out every window.
   OBR.scene.onMetadataChange(async (metadata) => {
     const next = readUiScale(metadata);
-    const nextAnimated = readAnimated(metadata);
-    if (next === uiScale && nextAnimated === animated) return;
+    if (next === uiScale) return;
     uiScale = next;
-    animated = nextAnimated;
     schedule(await OBR.scene.items.getItems());
   });
 
@@ -431,7 +517,6 @@ OBR.onReady(async () => {
     if (!ready) return;
     const metadata = await OBR.scene.getMetadata();
     uiScale = readUiScale(metadata);
-    animated = readAnimated(metadata);
     lastFlow = "";
     onItems(await OBR.scene.items.getItems());
     unsubscribe = OBR.scene.items.onChange(onItems);

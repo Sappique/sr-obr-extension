@@ -1,5 +1,5 @@
 import { loadFonts } from "../core/fonts";
-import { Box, Cmd, diamondPoints, drawRoutes, flowSegments, Pt, routeLinks, windowOutline } from "../core/geometry";
+import { Box, Cmd, diamondPoints, flowSegments, routeLinks, routePorts, windowOutline } from "../core/geometry";
 import { COLOR, windowTokens } from "../core/style";
 import { layoutWindow, Part, WindowSpec } from "../windows/layout";
 import dataSource from "../../../designs/assets/data.js?raw";
@@ -113,6 +113,7 @@ const toD = (commands: Cmd[]) =>
 
 const ORDER: Part["layer"][] = ["base", "fill", "text"];
 
+/** Draws the same segments the shader gets, with their dash phase. `pairs` are [from, to]. */
 function network(boxes: Box[], pairs: number[][]): string {
   const c = WINDOW.connector;
   const routes = routeLinks(pairs.map(([a, b]) => ({ a: boxes[a], b: boxes[b] })), boxes, {
@@ -121,26 +122,23 @@ function network(boxes: Box[], pairs: number[][]): string {
     clearance: c.clearance,
     shadow: WINDOW.shadow.offset,
     bendCost: c.bendCost,
+    portGap: c.portGap,
   });
+  const flow = flowSegments(routes);
   (window as unknown as { __routes: unknown[] }).__routes = [
     ...((window as unknown as { __routes?: unknown[] }).__routes ?? []),
-    { boxes, routes, flow: flowSegments(routes) },
+    { boxes, pairs, routes, flow },
   ];
-  const { line, ports } = drawRoutes(routes);
-  let out = `<path d="${toD(line)}" fill="none" stroke="${COLOR.yellow}" stroke-opacity="${c.opacity}" stroke-width="${c.width}" stroke-dasharray="${c.dash.join(" ")}"/>`;
-  for (const [x, y] of ports as Pt[]) {
+  const cycle = c.dash[0] + c.dash[1];
+  let out = flow
+    .map((f) => `<line x1="${f.x0}" y1="${f.y0}" x2="${f.x1}" y2="${f.y1}" stroke="${COLOR.yellow}" stroke-opacity="${c.opacity}" stroke-width="${c.width}" stroke-dasharray="${c.dash.join(" ")}" stroke-dashoffset="${f.phase % cycle}"/>`)
+    .join("");
+  for (const [x, y] of routePorts(routes)) {
     const pts = diamondPoints(x, y, c.portRadius).map((p) => p.join(",")).join(" ");
     out += `<polygon points="${pts}" fill="${COLOR.sceneBg}" stroke="${COLOR.yellow}" stroke-width="${c.width}"/>`;
   }
-  // SVG stand-in for the SkSL shader: one dashed line per segment, same phase.
-  const cycle = c.dash[0] + c.dash[1];
-  flowOverlay = flowSegments(routes)
-    .map((f) => `<line x1="${f.x0}" y1="${f.y0}" x2="${f.x1}" y2="${f.y1}" stroke="#5fcfdc" stroke-width="${c.width}" stroke-dasharray="${c.dash.join(" ")}" stroke-dashoffset="${f.phase % cycle}"/>`)
-    .join("");
   return out;
 }
-
-let flowOverlay = "";
 
 /** Org-chart test: a hub with several targets, a busy right-hand window, a stack. */
 function multiCase(): string {
@@ -159,7 +157,27 @@ function multiCase(): string {
       return `<g transform="translate(${box.x} ${box.y})"><polygon points="${points}" fill="${COLOR.panel}" stroke="${COLOR.yellow}" stroke-width="${WINDOW.border}"/><text x="24" y="60" fill="#fff" font-size="32">${i}</text></g>`;
     })
     .join("");
-  return `<svg id="multi" xmlns="http://www.w3.org/2000/svg" width="1900" height="1020">${network(boxes, pairs)}${flowOverlay}${rects}</svg>`;
+  return `<svg id="multi" xmlns="http://www.w3.org/2000/svg" width="1900" height="1020">${network(boxes, pairs)}${rects}</svg>`;
+}
+
+/** Opposing directions at one window, on both sides, with a window in the way. */
+function opposingCase(): string {
+  const b = (x: number, y: number, w = 300, h = 130): Box => ({ x, y, w, h });
+  const boxes = [
+    b(620, 300), // 0 hub
+    b(60, 80), b(60, 300), b(60, 520), // 1-3 left
+    b(1180, 80), b(1180, 300), b(1180, 520), // 4-6 right
+    b(620, 560), // 7 below
+    b(1010, 250, 80, 260), // 8 obstacle between hub and the right column
+  ];
+  const pairs = [[1, 0], [2, 0], [0, 3], [0, 4], [5, 0], [0, 6], [7, 0], [3, 7]];
+  const rects = boxes
+    .map((box, i) => {
+      const points = windowOutline(box.w, box.h, WINDOW.cut).map((p) => p.join(",")).join(" ");
+      return `<g transform="translate(${box.x} ${box.y})"><polygon points="${points}" fill="${COLOR.panel}" stroke="${COLOR.yellow}" stroke-width="${WINDOW.border}"/><text x="24" y="60" fill="#fff" font-size="32">${i}</text></g>`;
+    })
+    .join("");
+  return `<svg id="opposing" xmlns="http://www.w3.org/2000/svg" width="1560" height="780">${network(boxes, pairs)}${rects}</svg>`;
 }
 
 /** A window sits between connected windows, and on the default trunk position. */
@@ -226,7 +244,7 @@ async function main() {
   const links = network(boxes.slice(0, 4), [[0, 1], [1, 2], [2, 3]]);
   document.getElementById("stage")!.innerHTML =
     `<svg xmlns="http://www.w3.org/2000/svg" width="${x}" height="${maxH + 140}">${shadows}${svg}${links}</svg>`;
-  document.getElementById("stage")!.innerHTML += multiCase() + obstacleCase();
+  document.getElementById("stage")!.innerHTML += multiCase() + obstacleCase() + opposingCase();
   document.getElementById("out")!.textContent = stats.map((s) => JSON.stringify(s)).join("\n");
   (window as unknown as { __stats: unknown }).__stats = stats;
 }

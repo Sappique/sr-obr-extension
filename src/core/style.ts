@@ -90,6 +90,7 @@ export function windowTokens(scale: number) {
       /** Free space lines keep around windows and their shadows. */
       clearance: u(10),
       bendCost: u(80),
+      portGap: u(34),
     },
   };
 }
