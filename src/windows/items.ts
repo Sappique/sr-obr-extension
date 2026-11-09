@@ -207,11 +207,19 @@ export interface FlowData {
   segments: FlowSegment[];
 }
 
+/**
+ * One straight piece of a link. The rectangle is padded well beyond the line
+ * so it always covers whole screen pixels; the line inside is drawn by
+ * coverage. Each piece covers its flow range (w/2, L + w/2]: the end overlaps
+ * the next corner and the start leaves it out, so every point is drawn once.
+ */
 const FLOW_SKSL = `
 uniform vec2 size;
 uniform float time;
+uniform mat3 modelView;
 uniform float segLength;
 uniform float thickness;
+uniform float pad;
 uniform float horizontal;
 uniform float reversed;
 uniform float startPhase;
@@ -222,16 +230,39 @@ uniform float flowSpeed;
 uniform vec3 lineColor;
 
 half4 main(float2 coord) {
-  float along = (horizontal > 0.5 ? coord.x : coord.y) - thickness * 0.5;
-  if (reversed > 0.5) along = segLength - along;
+  // Screen pixels per scene unit. Taking only the linear part of the matrix
+  // gives the same length whichever way round it is stored.
+  float px = max(length((vec3(1.0, 0.0, 0.0) * modelView).xy), 0.0001);
+
+  float raw = (horizontal > 0.5 ? coord.x : coord.y) - pad;
+  float across = (horizontal > 0.5 ? coord.y : coord.x) - pad;
+  float f = reversed > 0.5 ? segLength - raw : raw;
+
+  // Never thinner than one screen pixel; fade instead so it doesn't look heavier.
+  float w = max(thickness, 1.0 / px);
+  float thin = thickness / w;
+  float hw = w * 0.5;
+  float coverAcross = clamp((hw - abs(across)) * px + 0.5, 0.0, 1.0);
+  float coverAlong = clamp((f - hw) * px + 0.5, 0.0, 1.0)
+                   * clamp((segLength + hw - f) * px + 0.5, 0.0, 1.0);
+
   float cycle = dashLength + gapLength;
   // Two dash cycles per 1.4 s, as in design 14. fract() keeps the value small.
   float shift = fract(time / 1.4) * 2.0 * cycle * flowSpeed;
-  float u = mod(startPhase + along - shift, cycle);
-  float a = (u < dashLength ? 1.0 : 0.0) * lineOpacity;
+  float u = mod(startPhase + f - shift, cycle);
+  float dash = u < dashLength
+    ? clamp(min(u, dashLength - u) * px + 0.5, 0.0, 1.0)
+    : clamp(0.5 - min(u - dashLength, cycle - u) * px, 0.0, 1.0);
+  // Dashes a few pixels long would shimmer: blend into an even, fainter line.
+  dash = mix(dashLength / cycle, dash, smoothstep(4.0, 8.0, cycle * px));
+
+  float a = coverAcross * coverAlong * dash * thin * lineOpacity;
   return half4(lineColor * a, a);
 }
 `;
+
+/** Scene units of padding around each piece; keeps it several pixels wide when zoomed out. */
+const FLOW_PAD = 24;
 
 const YELLOW = { x: 245 / 255, y: 225 / 255, z: 10 / 255 };
 
@@ -240,18 +271,18 @@ export function buildFlowEffect(segment: FlowSegment, data: FlowData, opacity: n
   const horizontal = y0 === y1;
   const length = Math.abs(horizontal ? x1 - x0 : y1 - y0);
   const reversed = horizontal ? x1 < x0 : y1 < y0;
-  const w = data.width;
-  // Half a line width of overlap at each end joins the corners.
+  const pad = Math.max(FLOW_PAD, data.width * 2);
   return buildEffect()
     .name("Connector flow")
     .effectType("STANDALONE")
-    .position({ x: Math.min(x0, x1) - w / 2, y: Math.min(y0, y1) - w / 2 })
-    .width(horizontal ? length + w : w)
-    .height(horizontal ? w : length + w)
+    .position({ x: Math.min(x0, x1) - pad, y: Math.min(y0, y1) - pad })
+    .width(horizontal ? length + 2 * pad : 2 * pad)
+    .height(horizontal ? 2 * pad : length + 2 * pad)
     .sksl(FLOW_SKSL)
     .uniforms([
       { name: "segLength", value: length },
-      { name: "thickness", value: w },
+      { name: "thickness", value: data.width },
+      { name: "pad", value: pad },
       { name: "horizontal", value: horizontal ? 1 : 0 },
       { name: "reversed", value: reversed ? 1 : 0 },
       { name: "startPhase", value: phase % (data.dash + data.gap) },
