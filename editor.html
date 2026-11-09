@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Edit window</title>
+  </head>
+  <body>
+    <form id="editor">
+      <label>Title<input id="title" type="text" autocomplete="off" /></label>
+      <div class="row">
+        <label>Type tag<input id="tag" type="text" autocomplete="off" placeholder="Org, Person, Main Gig …" /></label>
+        <label>Variant
+          <select id="variant"><option value="standard">Standard</option><option value="brief">Brief</option></select>
+        </label>
+      </div>
+      <label class="grow">Text (Markdown)<textarea id="markdown" spellcheck="false"></textarea></label>
+    </form>
+    <script type="module" src="/src/windows/editor.ts"></script>
+  </body>
+</html>

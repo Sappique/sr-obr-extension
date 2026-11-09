@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Shadowrun VTT options</title>
+    <style>
+      body { margin: 0; padding: 14px 16px; color: #e3e9ec; font: 13px system-ui, sans-serif; }
+      label { display: block; font-size: 12px; color: #b3c0c6; }
+      output { float: right; color: #f5e10a; }
+      input { display: block; width: 100%; margin: 8px 0 0; accent-color: #f5e10a; }
+      p { margin: 8px 0 0; font-size: 12px; color: #b3c0c6; }
+      .check { display: flex; align-items: center; gap: 6px; margin-top: 12px; }
+      .check input { width: auto; margin: 0; }
+      [hidden] { display: none; }
+    </style>
+  </head>
+  <body>
+    <label>Window scale (all windows) <output id="value"></output>
+      <input id="scale" type="range" />
+    </label>
+    <label class="check"><input id="animated" type="checkbox" /> Animated links</label>
+    <p id="notice" hidden>Only the GM can change this.</p>
+    <script type="module" src="/src/windows/settings.ts"></script>
+  </body>
+</html>
