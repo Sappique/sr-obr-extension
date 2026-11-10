@@ -383,6 +383,28 @@ function createTool() {
 const frameFilter = { key: ["metadata", ROLE_KEY], value: "frame" };
 
 function createContextMenu() {
+  // Build a run graph quickly: a new window right of the selected one, already linked.
+  OBR.contextMenu.create({
+    id: `${ID}/add-linked`,
+    icons: [{ icon: ICON("add-linked"), label: "Add linked window", filter: { max: 1, roles: ["GM"], every: [frameFilter] } }],
+    async onClick(context) {
+      const source = context.items[0] as Curve;
+      const box = frameBounds(source);
+      const t = windowTokens(uiScale);
+      const frame = buildFrame(
+        { x: box.x + box.w + t.connector.sideOffset * 2, y: box.y },
+        windowOutline(t.defaultWidth, t.cut * 4, t.cut),
+        { ...DEFAULT_SPEC, title: "Neuer Knoten" },
+        t,
+      );
+      frame.visible = source.visible;
+      await OBR.scene.items.addItems([frame]);
+      const master = await findMaster();
+      if (master) await editLinks(master.id, (links) => [...links, { from: source.id, to: frame.id }]);
+      else await OBR.scene.items.addItems(buildNetwork([{ from: source.id, to: frame.id }], t));
+      await OBR.player.select([frame.id]);
+    },
+  });
   OBR.contextMenu.create({
     id: `${ID}/edit`,
     icons: [
