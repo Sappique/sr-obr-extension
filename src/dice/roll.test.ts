@@ -46,4 +46,8 @@ test("makeRoll produces a valid message", () => {
   assert.equal(m.dice.length, 3);
   assert.ok(JSON.stringify(m).length < 400);
   assert.ok(!isRollMessage({ ...m, dice: [{ size: 7, value: 3 }] }));
+  const n = makeRoll("Hawk · TECHNIK + Flugdrohnen", "#ff8a1f", [8, 6], Math.random, { initials: "HK", names: ["TECHNIK", "Flugdrohnen"] });
+  assert.ok(isRollMessage(n));
+  assert.equal(n.initials, "HK");
+  assert.ok(!isRollMessage({ ...n, names: ["TECHNIK"] })); // one name per die
 });

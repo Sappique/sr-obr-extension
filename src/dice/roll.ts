@@ -35,12 +35,23 @@ export interface RollMessage {
   title: string;
   color: string;
   dice: Die[];
-  /** Seed for the flicker so the animation looks the same everywhere. */
+  /** Seed for the tumble so the animation looks the same everywhere. */
   seed: number;
+  /** Runner initials for the header square (e.g. "HK"). Optional for older senders. */
+  initials?: string;
+  /** One name per die (attribute, skill, specialisation), shown above the dice. */
+  names?: string[];
 }
 
-export function makeRoll(title: string, color: string, sizes: number[], random: () => number = Math.random): RollMessage {
+export function makeRoll(
+  title: string,
+  color: string,
+  sizes: number[],
+  random: () => number = Math.random,
+  extra: { initials?: string; names?: string[] } = {},
+): RollMessage {
   return {
+    ...extra,
     id: `${Date.now().toString(36)}-${Math.floor(random() * 1e9).toString(36)}`,
     title,
     color,
@@ -52,5 +63,7 @@ export function makeRoll(title: string, color: string, sizes: number[], random: 
 export function isRollMessage(value: unknown): value is RollMessage {
   const v = value as RollMessage;
   return !!v && typeof v.id === "string" && typeof v.title === "string" && Array.isArray(v.dice) &&
-    v.dice.length > 0 && v.dice.length <= 6 && v.dice.every((d) => [4, 6, 8, 10, 12].includes(d.size) && d.value >= 1 && d.value <= d.size);
+    v.dice.length > 0 && v.dice.length <= 6 && v.dice.every((d) => [4, 6, 8, 10, 12].includes(d.size) && d.value >= 1 && d.value <= d.size) &&
+    (v.initials === undefined || (typeof v.initials === "string" && v.initials.length <= 4)) &&
+    (v.names === undefined || (Array.isArray(v.names) && v.names.length === v.dice.length && v.names.every((n) => typeof n === "string" && n.length <= 80)));
 }

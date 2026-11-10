@@ -1,50 +1,73 @@
-/* Dice roll popups (OBR popover, bottom right). Window style of design 14. */
+/* Dice roll popups (OBR popover, bottom right). Design: designs/17-dice-roller.html.
+   Slab window, initials header, names above the dice, result on the right in a yellow plaque,
+   tumble + numbers, newest roll on top, collapse to one line, then slide out. */
 :root{
   --y:#f5e10a; --y-rgb:245,225,10; --panel:#07080c; --line:rgba(95,207,220,.18);
-  --txt:#e3e9ec; --soft:#b3c0c6; --dim:#74828a;
+  --txt:#e3e9ec; --soft:#b3c0c6; --dim:#74828a; --steel:#3a434b;
   --disp:'Rajdhani',sans-serif; --orb:'Orbitron',sans-serif; --mono:'Share Tech Mono',monospace;
+  --face:42px;
 }
 *{box-sizing:border-box}
 html,body{margin:0;background:transparent;color:var(--txt);font-family:var(--disp);-webkit-font-smoothing:antialiased;overflow:hidden}
 /* Anchored bottom-right like the popover itself: while OBR applies a new popover size (a frame
-   or two later), the visible popups keep their screen position instead of jumping. */
-#stack{position:fixed;right:0;bottom:0;display:flex;flex-direction:column;align-items:flex-end;gap:14px;padding:4px 2px 14px 16px}
+   or two later), the visible popups keep their screen position. New rolls go on top. */
+/* OBR clips popovers to a 16 px corner radius: 5 px of transparent padding keeps the square popup
+   corners clear of it (16 × (1 − 1/√2) ≈ 4.7 px). */
+#stack{position:fixed;right:0;bottom:0;display:flex;flex-direction:column;align-items:flex-end;gap:14px;padding:5px}
 #stack:empty{padding:0}
 /* a new popup is measured out of flow before the popover has grown for it */
-#stack > .roll.measure{position:absolute;right:2px;bottom:14px;visibility:hidden}
+#stack > .roll.measure{position:absolute;right:5px;bottom:5px;visibility:hidden}
 
-.w{position:relative;flex:none;--cut:16px;--clip:polygon(0 0,calc(100% - var(--cut)) 0,100% var(--cut),100% 100%,var(--cut) 100%,0 calc(100% - var(--cut)))}
-.w .plate{position:absolute;inset:0;transform:translate(-10px,10px);background:repeating-linear-gradient(45deg,rgba(var(--y-rgb),.34) 0 4px,transparent 4px 11px);clip-path:var(--clip)}
-.w .frame{position:relative;padding:3px;background:var(--y);clip-path:var(--clip)}
-.w .inner{position:relative;background:var(--panel);clip-path:var(--clip)}
+/* slab window: flat dark panel, thin steel frame, runner edge on the left */
+.roll{position:relative;flex:none;max-width:560px;padding:1px;background:var(--steel)}
+.roll > .inner{position:relative;background:var(--panel);border-left:4px solid var(--pc,var(--y))}
 
-.roll{width:max-content;min-width:250px;max-width:520px;transition:opacity .5s ease}
-.roll.gone{opacity:0}
-/* title bar: runner tab on the left, like the sheet header */
-.rh{position:relative;display:block;min-height:30px;padding:5px 26px 5px 22px;border-bottom:1px solid var(--line);font:700 15px/1.1 var(--disp);letter-spacing:.06em;color:#fff;text-transform:uppercase}
-.rh::before{content:'';position:absolute;left:0;top:0;bottom:0;width:10px;background:var(--pc)}
-.rh::after{content:'';position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--y)}
-.rh b{color:var(--pc);font-weight:700}
-.dice{display:flex;align-items:flex-end;gap:12px;padding:12px 18px 12px}
-.dv{position:relative;width:62px;display:flex;flex-direction:column;align-items:center;gap:3px}
-.dv .face{position:relative;width:62px;height:62px;display:grid;place-items:center}
+/* header: initials square like the sidebar + what is rolled (wraps; never sets the width) */
+.rh{width:0;min-width:100%;position:relative;display:flex;align-items:center;gap:8px;padding:4px 18px 4px 4px;border-bottom:1px solid var(--line);font:700 14px/1.1 var(--disp);letter-spacing:.06em;color:#fff;text-transform:uppercase}
+.rh .ini,.one .ini{flex:none;display:grid;place-items:center;background:var(--pc);color:#000;font-family:var(--orb);font-weight:900}
+.rh .ini{width:22px;height:22px;font-size:10px;line-height:1}
+.rh .what{min-width:0}
+
+/* body: dice left, result right, one tight row */
+.rb{display:flex;align-items:center;gap:14px;padding:8px 14px 9px}
+.dice{display:flex;align-items:flex-end;gap:10px}
+/* equal die columns (--col from JS): only as wide as neighbouring names need; names overhang, capped (--nmax) */
+.dv{position:relative;flex:none;width:var(--col,var(--face));display:flex;flex-direction:column;align-items:center;gap:2px}
+.dv .face{position:relative;width:var(--face);height:var(--face);transform-origin:var(--ox,50%) var(--oy,50%)}
 .dv svg{position:absolute;inset:0;overflow:visible}
-.dv svg polygon{fill:none;stroke:var(--y);stroke-width:2;stroke-linejoin:round;transition:fill .25s,stroke .25s}
-.dv .num{position:relative;font:700 22px/1 var(--orb);color:#fff;font-variant-numeric:tabular-nums;transform:translateY(var(--ny,0))}
+.dv svg polygon,.dv svg polyline{fill:none;stroke:var(--y);stroke-width:2.86;stroke-linejoin:round;shape-rendering:geometricPrecision}
+.dv svg polyline{stroke-width:1.43;opacity:.55}
+.dv .num{font-family:var(--orb);font-weight:700;fill:#fff;font-variant-numeric:tabular-nums}
 .dv .lab{font:10px var(--mono);letter-spacing:.14em;color:var(--dim)}
-.dv.rolling .num{color:var(--soft)}
-.dv.max svg polygon{stroke-dasharray:none}
+.dv .nm{width:max-content;max-width:var(--nmax);font:600 12px/1.1 var(--disp);color:var(--soft);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dv.k-attr .nm{text-transform:uppercase;letter-spacing:.06em}
+.dv.rolling .num{fill:var(--soft)}
 .dv.base svg polygon{fill:var(--y)}
-.dv.base .num{color:#000}
+.dv.base svg polyline{display:none}
+.dv.base .num{fill:#000}
 .dv.base .lab{color:var(--y)}
 .dv.spent{opacity:.35}
-.dv.spent .num{color:var(--y)}
-.dv.pulse .face{animation:pulse .28s ease-out}
+.dv.spent .num{fill:var(--y)}
+.pulse{animation:pulse .3s ease-out}
 @keyframes pulse{40%{transform:scale(1.24)}100%{transform:scale(1)}}
-.chip{position:fixed;z-index:5;font:700 16px/1 var(--orb);color:var(--y);text-shadow:0 0 6px rgba(0,0,0,.9);pointer-events:none}
-.res{align-self:center;margin-left:4px;font:10px var(--mono);letter-spacing:.14em;color:var(--dim);opacity:0;transition:opacity .3s}
-.res b{display:block;font:900 30px/1 var(--orb);color:var(--y);letter-spacing:.02em}
-.roll.done .res{opacity:1}
+.chip{position:fixed;z-index:50;font:700 16px/1 var(--orb);color:var(--y);pointer-events:none}
+
+/* result: yellow plaque on the right */
+.res{order:2;align-self:stretch;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px 14px;background:var(--y);color:#000;font:10px var(--mono);letter-spacing:.14em}
+.res .tot{font:900 44px/1 var(--orb);color:#000;letter-spacing:.02em}
+.roll:not(.done) .res .tot{color:rgba(0,0,0,.7)}
+
+/* one-line collapsed state */
+.one{display:none;align-items:center;gap:8px;padding:4px 12px 4px 4px;font:600 14px/1.1 var(--disp);color:var(--soft);white-space:nowrap}
+.one .ini{width:18px;height:18px;font-size:8px;line-height:1}
+.one .what{font:11px var(--mono);color:var(--dim);letter-spacing:.06em}
+.one .tot1{margin-left:auto;font:900 18px/1 var(--orb);color:var(--y);padding-left:10px}
+.roll.collapsed .rh,.roll.collapsed .rb{display:none}
+.roll.collapsed .one{display:flex}
+
+/* entry: slide in from the right */
+.enter{animation:inSlide .32s cubic-bezier(.2,.8,.3,1) both}
+@keyframes inSlide{from{transform:translateX(60px);opacity:0}to{transform:none;opacity:1}}
 
 /* standalone preview (no OBR) */
 html.standalone,html.standalone body{background:#1e2130;height:100%}

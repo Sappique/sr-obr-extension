@@ -338,7 +338,7 @@ function roll(path: string) {
       sizes.push(dieSize(p.die));
     }
   }
-  backend.roll(makeRoll(`${s.handle} · ${parts.join(" + ")}`, s.color, sizes));
+  backend.roll(makeRoll(`${s.handle} · ${parts.join(" + ")}`, s.color, sizes, Math.random, { initials: s.initials, names: parts }));
 }
 
 app.addEventListener("click", (ev) => {
