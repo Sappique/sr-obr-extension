@@ -9,7 +9,13 @@
  *   8 s after arrival the popup collapses to one line, 10 s later that line slides out
  *     (both fixed on arrival, never earlier than an older roll, so older rolls always go first)
  * Newest roll on top; the stack is bottom-anchored, so older rolls keep their place.
- * The popover is sized to its content (0×0 when empty).
+ *
+ * Popover size: OBR applies a new popover width/height one frame BEFORE it moves the popover to keep
+ * its bottom-right corner on the anchor, so every resize while something is visible makes the content
+ * jump for a frame. The popover therefore only changes size while nothing is visible: it gets one
+ * fixed "reserved" size when the first roll arrives and goes back to 0×0 once the last line has left.
+ * Content always fits that box: wide rolls truncate names, and when a new roll does not fit, the
+ * oldest roll collapses (or the oldest line leaves) early. See resize evidence in the commit message.
  */
 import "@fontsource/rajdhani/600.css";
 import "@fontsource/rajdhani/700.css";
@@ -27,7 +33,6 @@ const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 const esc = (s: unknown) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
-const waitUntil = (t: number) => wait(Math.max(0, t - performance.now()));
 
 // ---------- shapes ----------
 // Outline per die size (60×60 box). D10 and D12 get a facet line in their lower part, clear of the
@@ -58,6 +63,7 @@ const NUM_UNITS = (16 * 60) / FACE_PX; // 16 px number in the 60-unit face box
 const STAGGER_MS = 260; // dice stop one by one
 const GAP = 14; // #stack gap
 const PAD = 5; // #stack padding: keeps popup corners clear of OBR's rounded popover clip
+const DICE_BOTTOM = 16; // popover bottom gap (src/sheets/background.ts DICE_BOTTOM_GAP)
 const COL_MAX = 112; // widest a name may make a die column; longer names truncate
 const LABEL_GAP = 8; // minimum space between two neighbouring names
 const DICE_GAP = 10; // .dice gap
@@ -115,7 +121,7 @@ function rollHTML(msg: RollMessage) {
 /** Equal die spacing, as tight as the names allow: the centre distance is the largest that any two
  *  NEIGHBOURING names need, never less than the face plus the normal gap. Names may overhang their
  *  own column; the outer names get padding so they never stick out of the popup. */
-function sizeColumns(el: HTMLElement) {
+function sizeColumns(el: HTMLElement, maxWidth = Infinity) {
   const dice = el.querySelector<HTMLElement>(".dice")!;
   // the real (fractional) text width; scrollWidth rounds down and would trigger the ellipsis
   const textWidth = (n: Element) => {
@@ -123,14 +129,19 @@ function sizeColumns(el: HTMLElement) {
     rg.selectNodeContents(n);
     return Math.ceil(rg.getBoundingClientRect().width) + 1;
   };
-  const w = [...dice.querySelectorAll(".nm")].map((n) => Math.min(textWidth(n), COL_MAX));
-  let centre = FACE_PX + DICE_GAP;
-  for (let i = 0; i + 1 < w.length; i++) centre = Math.max(centre, (w[i] + w[i + 1]) / 2 + LABEL_GAP);
-  const col = centre - DICE_GAP;
-  dice.style.setProperty("--col", `${col}px`);
-  dice.style.setProperty("--nmax", `${COL_MAX}px`);
-  dice.style.paddingLeft = `${Math.max(0, (w[0] - col) / 2)}px`;
-  dice.style.paddingRight = `${Math.max(0, (w[w.length - 1] - col) / 2)}px`;
+  const full = [...dice.querySelectorAll(".nm")].map(textWidth);
+  // the popup must fit the reserved popover width: lower the name cap until it does
+  for (let cap = COL_MAX; ; cap -= 4) {
+    const w = full.map((x) => Math.min(x, cap));
+    let centre = FACE_PX + DICE_GAP;
+    for (let i = 0; i + 1 < w.length; i++) centre = Math.max(centre, (w[i] + w[i + 1]) / 2 + LABEL_GAP);
+    const col = centre - DICE_GAP;
+    dice.style.setProperty("--col", `${col}px`);
+    dice.style.setProperty("--nmax", `${cap}px`);
+    dice.style.paddingLeft = `${Math.max(0, (w[0] - col) / 2)}px`;
+    dice.style.paddingRight = `${Math.max(0, (w[w.length - 1] - col) / 2)}px`;
+    if (el.getBoundingClientRect().width <= maxWidth || cap <= FACE_PX) return;
+  }
 }
 
 /** Tumble + numbers: each face turns continuously (eased) around its centroid while the number changes,
@@ -231,6 +242,7 @@ async function play(msg: RollMessage) {
   el.style.setProperty("--pc", msg.color);
   el.innerHTML = rollHTML(msg);
   await enter(el);
+  void lifecycle(el, collapseAt, exitAt);
   const dv = [...el.querySelectorAll<HTMLElement>(".dv")];
   const num = dv.map((d) => d.querySelector<SVGTextElement>(".num")!);
   const tot = el.querySelector<HTMLElement>(".res .tot")!;
@@ -250,7 +262,7 @@ async function play(msg: RollMessage) {
     const from = num[i].getBoundingClientRect();
     const to = num[out.base].getBoundingClientRect();
     dv[i].classList.add("spent");
-    if (!reduced) {
+    if (!reduced && !el.classList.contains("collapsed")) {
       const chip = document.createElement("span");
       chip.className = "chip";
       chip.textContent = "+1";
@@ -279,26 +291,73 @@ async function play(msg: RollMessage) {
   tot.classList.remove("pulse");
   void tot.offsetWidth;
   tot.classList.add("pulse");
-
-  // 3. end of life at the times fixed on arrival
-  await waitUntil(collapseAt);
-  if (!el.isConnected) return;
-  el.classList.remove("enter");
-  await morph(el, () => el.classList.add("collapsed"));
-  await waitUntil(exitAt);
-  if (!el.isConnected) return;
-  await removeLine(el);
 }
 
-// ---------- popover size follows the content ----------
-// OBR applies a new popover size a frame or two after it is requested. The stack is anchored
-// bottom-right (as is the popover), so shrinking after a removal never moves anything visible.
-// Growing must happen BEFORE a new popup enters the flow, or it would be clipped for a frame:
-// enter() measures it out of flow, grows the popover, waits until the new size has arrived,
-// and only then puts it on top of the stack (older popups below keep their screen position).
+// ---------- end of life ----------
+// Fixed on arrival (collapse after 8 s, slide out 10 s later, older rolls first). When a new roll
+// needs space in the fixed-size popover, the oldest roll is hurried: it collapses / leaves now.
+type Life = { hurryCollapse: () => void; hurryExit: () => void; collapsing: boolean; collapsed: Promise<void>; gone: Promise<void> };
+const lives = new WeakMap<HTMLElement, Life>();
+const sleepUntil = (t: number, hurry: (wake: () => void) => void) =>
+  new Promise<void>((resolve) => {
+    const id = setTimeout(resolve, Math.max(0, t - performance.now()));
+    hurry(() => { clearTimeout(id); resolve(); });
+  });
+
+function lifecycle(el: HTMLElement, collapseAt: number, exitAt: number) {
+  let doneCollapse!: () => void, doneGone!: () => void;
+  const life: Life = {
+    hurryCollapse: () => {}, hurryExit: () => {}, collapsing: false,
+    collapsed: new Promise((r) => (doneCollapse = r)),
+    gone: new Promise((r) => (doneGone = r)),
+  };
+  lives.set(el, life);
+  return (async () => {
+    await sleepUntil(collapseAt, (wake) => (life.hurryCollapse = wake));
+    life.collapsing = true;
+    if (el.isConnected) {
+      el.classList.remove("enter");
+      await morph(el, () => el.classList.add("collapsed"));
+    }
+    doneCollapse();
+    await sleepUntil(exitAt, (wake) => (life.hurryExit = wake));
+    if (el.isConnected) await removeLine(el);
+    doneGone();
+    if (!stack.children.length) setSize(0, 0); // nothing visible any more: the resize can't be seen
+  })();
+}
+
+/** Frees space at the bottom of the stack: the oldest full popup collapses now, else the oldest line leaves. */
+async function hurryOldest() {
+  const rolls = [...stack.children].filter((c) => !c.classList.contains("measure")) as HTMLElement[];
+  const full = [...rolls].reverse().find((r) => !lives.get(r)?.collapsing);
+  if (full) {
+    const life = lives.get(full)!;
+    life.hurryCollapse();
+    return life.collapsed;
+  }
+  const oldest = rolls.at(-1);
+  if (!oldest) return;
+  const life = lives.get(oldest)!;
+  life.hurryExit();
+  return life.gone;
+}
+
+// ---------- popover size: fixed while anything is visible ----------
+// Measured in OBR: after setWidth/setHeight the popover has the new size but its old top/left for a
+// frame, so its bottom/right edge (the anchor) is off by the size change, and the bottom-right
+// anchored content jumps by that much. Hence: one reserved size while rolls are visible, 0×0 otherwise.
+const RES_W_MIN = 400; // reserved width: at least this, at most RES_W_MAX (wider rolls truncate names)
+const RES_W_MAX = 510;
+const FULL_H = 139; // tallest full popup (two-line title)
+const LINE_H = 28; // one collapsed line
+const RES_H = 2 * FULL_H + GAP + LINE_H + GAP + 2 * PAD; // two full popups and a line; more hurries the oldest
+const TOP_MARGIN = 96; // keep clear of OBR's top bar on short screens
+let reserved: { w: number; h: number } | null = null;
 let lastSize = "";
 let obrReady = false; // size requests before OBR is ready are rejected; onReady re-syncs
 function setSize(w: number, h: number) {
+  if (!w || !h) reserved = null;
   const key = `${w}x${h}`;
   if (key === lastSize) return;
   if (OBR.isAvailable && !obrReady) return;
@@ -308,33 +367,48 @@ function setSize(w: number, h: number) {
     void OBR.popover.setHeight(DICE_POPOVER, h);
   } else document.documentElement.dataset.size = key;
 }
-function syncSize() {
-  if (stack.querySelector(".measure")) return; // enter() owns the size while it grows the popover
-  if (!stack.children.length) return setSize(0, 0);
-  const r = stack.getBoundingClientRect();
-  setSize(Math.ceil(r.width), Math.ceil(r.height));
+/** Polls with timers, not rAF: an iframe that is 0×0 or not rendering gets no animation frames. */
+async function waitForSize(w: number, h: number, ms = 600) {
+  const t0 = performance.now();
+  while ((innerWidth !== w || innerHeight !== h) && performance.now() - t0 < ms) await wait(16);
+  await wait(48); // OBR moves the popover a frame after resizing it; let that land while nothing shows
 }
-new ResizeObserver(syncSize).observe(stack);
+async function screenHeight() {
+  try {
+    return OBR.isAvailable ? await OBR.viewport.getHeight() : innerHeight;
+  } catch {
+    return innerHeight;
+  }
+}
 
 let entering = Promise.resolve();
 
-/** Inserts a popup on top of the stack only once the popover is big enough to show it (one at a time). */
+/** Puts a popup on top of the stack. The first popup of a burst reserves the popover size (nothing is
+ *  visible yet, so the resize can't be seen); later ones make room by hurrying the oldest roll. */
 function enter(el: HTMLElement) {
   entering = entering.then(async () => {
     await document.fonts?.ready; // name widths are measured
     el.classList.add("measure");
     stack.appendChild(el);
-    sizeColumns(el);
-    const s = stack.getBoundingClientRect();
-    const e = el.getBoundingClientRect();
-    const others = stack.children.length - 1;
-    const w = Math.ceil(Math.max(others ? s.width : 0, e.width + 2 * PAD));
-    const h = Math.ceil((others ? s.height + GAP : 2 * PAD) + e.height);
-    if (OBR.isAvailable && (innerWidth < w || innerHeight < h)) {
-      setSize(w, h);
-      const t0 = performance.now();
-      while ((innerWidth < w || innerHeight < h) && performance.now() - t0 < 400) {
-        await new Promise((r) => requestAnimationFrame(r));
+    const first = !reserved || stack.children.length === 1;
+    if (first) {
+      sizeColumns(el, RES_W_MAX - 2 * PAD);
+      const e = el.getBoundingClientRect();
+      const w = Math.ceil(Math.min(RES_W_MAX, Math.max(RES_W_MIN, e.width + 2 * PAD)));
+      const h = Math.ceil(Math.max(e.height + 2 * PAD, Math.min(RES_H, (await screenHeight()) - DICE_BOTTOM - TOP_MARGIN)));
+      reserved = { w, h };
+      if (OBR.isAvailable) {
+        setSize(w, h);
+        await waitForSize(w, h);
+      }
+    } else {
+      sizeColumns(el, reserved!.w - 2 * PAD);
+      // hurry the oldest rolls until the new popup fits the reserved height
+      for (let i = 0; i < 12; i++) {
+        const rest = [...stack.children].filter((c) => c !== el) as HTMLElement[];
+        const used = rest.reduce((a, c) => a + c.getBoundingClientRect().height, 0) + GAP * rest.length;
+        if (used + el.getBoundingClientRect().height + 2 * PAD <= reserved!.h || !rest.length) break;
+        await hurryOldest();
       }
     }
     el.classList.remove("measure");
@@ -353,7 +427,8 @@ if (OBR.isAvailable) {
     // size requests made before OBR was ready are lost: a reloaded page could keep an old popover size
     obrReady = true;
     lastSize = "";
-    syncSize();
+    if (reserved) setSize(reserved.w, reserved.h);
+    else setSize(0, 0);
   });
 } else {
   // Standalone preview: rolls from the sidebar preview arrive via BroadcastChannel; ?demo plays examples.
