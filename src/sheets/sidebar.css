@@ -86,8 +86,11 @@ html.part-sheet #sheet{margin-left:0}
 .ny-foot .ny{margin:10px 0 0;text-align:left;border-top:1px solid var(--line);padding-top:7px}
 .ny-foot .ny .q{justify-content:flex-start}
 .ny-foot .ny input{text-align:left}
-.cols{display:grid;grid-template-columns:304px 1fr;gap:0 28px}
-.secs{display:grid;gap:0 26px;align-items:start}
+/* sheet body: the document's columns, equal widths */
+.body{display:grid;gap:0 26px;align-items:start}
+.body .col{min-width:0}
+.body .col > .md:not(:first-child),.body .col > .nb-list + .md{margin-top:14px}
+.body .col > .ny-foot:first-child .ny{margin-top:0;border-top:0;padding-top:0}
 
 /* GM affordances */
 body.player .gmonly{display:none!important}
@@ -151,17 +154,17 @@ body.player .gmonly{display:none!important}
 .md .co-reward .co-t{font:900 20px/1.2 var(--orb);color:var(--y)}
 .md .co-b{margin-top:3px;font-size:15px}
 .md .co-b > :last-child{margin-bottom:0}
-.sbox{position:relative;margin-bottom:12px}
-.sbox .ed{position:absolute;right:0;top:-1px;background:var(--panel);border:1px dashed rgba(var(--y-rgb),.5);color:var(--y);font:10px var(--mono);letter-spacing:.12em;padding:2px 6px;opacity:.55}
-.sbox:hover .ed{opacity:1}
-.sbox textarea,.jsonbox textarea{width:100%;min-height:170px;background:#0b0e14;color:var(--txt);border:1px solid var(--y);font:13px/1.4 var(--mono);padding:8px;resize:vertical}
+.docbox textarea,.jsonbox textarea{display:block;width:100%;background:#0b0e14;color:var(--txt);border:1px solid var(--y);font:13px/1.45 var(--mono);padding:10px 12px;resize:vertical;tab-size:2}
+.docbox textarea{height:max(300px,calc(var(--screen-h) - 370px))}
 .jsonbox textarea{min-height:min(520px,calc(var(--screen-h) - 330px))}
+.docbox .hint{margin:0 0 8px;font:12px/1.5 var(--mono);color:var(--dim)}
+.docbox .hint code{color:var(--y);font:inherit}
 .jsonbox .err{margin-top:4px;font:12px var(--mono);color:var(--r)}
 .ea{display:flex;gap:6px;margin-top:4px}
 .ea button,.add{background:none;border:1px dashed rgba(var(--y-rgb),.6);color:var(--y);font:11px var(--mono);letter-spacing:.1em;padding:3px 9px}
 .ea button:hover,.add:hover{background:rgba(var(--y-rgb),.12)}
 .ea [data-del]{margin-left:auto;border-color:rgba(255,40,72,.6);color:var(--r)}
-.tools{display:flex;gap:6px}
+.tools{display:flex;gap:6px;margin-top:14px}
 
 /* ---------- skills + dice (accent yellow only) ---------- */
 .att{display:flex;align-items:center;gap:10px;padding:7px 0 3px}

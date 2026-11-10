@@ -14,7 +14,9 @@ import OBR from "@owlbear-rodeo/sdk";
 import { makeRoll } from "../dice/roll";
 import { Backend, Entry, mockBackend, obrBackend } from "./backend";
 import { esc, markdownToHtml } from "./markdownHtml";
+import { docFromSections, parseDoc } from "./doc";
 import {
+  docOf,
   dieSize,
   SHEET_POPOVER,
   SHEET_POPOVER_POS,
@@ -73,6 +75,8 @@ let lastData = "";
 let pending = false;
 /** Sheet id whose structure JSON editor is open. */
 let jsonOpen = "";
+/** Sheet id whose body document editor is open. */
+let docOpen = "";
 
 const app = document.getElementById("app")!;
 const fmtY = (n: number) => n.toLocaleString("de-DE") + " ¥";
@@ -123,21 +127,35 @@ function nuyenBlock(s: Sheet) {
   return `<div class="ny"><label>${s.shared ? "NUYEN · CREW" : "NUYEN"}</label><span class="nv ${gm ? "edit" : ""}" data-ny>${fmtY(s.nuyen)}</span>
     <div class="q gmonly">${[-500, -100, 100, 500].map((d) => `<button data-nyd="${d}">${d > 0 ? "+" : "−"}${Math.abs(d)}</button>`).join("")}</div></div>`;
 }
-/** Sections fill n columns greedily (shortest column first, by estimated height), keeping source order per column. */
-function sectionsBlock(s: Sheet, n: number) {
-  const cols = Array.from({ length: n }, () => ({ h: 0, html: "" }));
-  s.sections.forEach((src, i) => {
-    const c = cols.reduce((a, b) => (b.h < a.h ? b : a));
-    const foot = /^## Ausrüstung\b/m.test(src) ? `<div class="ny-foot">${nuyenBlock(s)}</div>` : "";
-    c.html += `<section class="sbox" data-sec="${i}"><div class="md">${markdownToHtml(src)}</div>${foot}<button class="ed gmonly" data-ed>EDIT</button></section>`;
-    c.h += src.split("\n").reduce((a, l) => a + Math.ceil(Math.max(1, l.length) / 40), 0) * 24 + 40;
-  });
-  // Nuyen must always be reachable, even without an Ausrüstung section.
-  const orphan = s.sections.some((src) => /^## Ausrüstung\b/m.test(src)) ? "" : `<div class="ny-foot">${nuyenBlock(s)}</div>`;
+/** The sheet body: its Markdown document laid out in columns, with the structured parts at their placeholders. */
+function bodyBlock(s: Sheet) {
+  const cols = parseDoc(docOf(s), { name: !s.shared && s.meta.length > 0, skills: s.attributes.length > 0, nuyen: true });
+  const html = cols
+    .map(
+      (col) =>
+        `<div class="col">${col
+          .map((b) =>
+            b.kind === "md"
+              ? `<div class="md">${markdownToHtml(b.src)}</div>`
+              : b.kind === "name"
+                ? nameBlock(s)
+                : b.kind === "skills"
+                  ? skillsBlock(s)
+                  : `<div class="ny-foot">${nuyenBlock(s)}</div>`,
+          )
+          .join("")}</div>`,
+    )
+    .join("");
   return (
-    `<div class="secs" style="grid-template-columns:repeat(${n},1fr)">${cols.map((c) => `<div>${c.html}</div>`).join("")}</div>${orphan}` +
-    `<div class="tools gmonly"><button class="add" data-add>+ ADD SECTION</button><button class="add" data-json>EDIT SHEET DATA</button></div>`
+    `<div class="body" style="grid-template-columns:repeat(${cols.length},minmax(0,1fr))">${html}</div>` +
+    `<div class="tools gmonly"><button class="add" data-doc>EDIT TEXT &amp; LAYOUT</button><button class="add" data-json>EDIT SHEET DATA</button></div>`
   );
+}
+function docEditor(s: Sheet) {
+  return `<div class="docbox"><div class="md"><h2>Text &amp; layout (Markdown)</h2></div>
+    <p class="hint"><code>&lt;!-- column --&gt;</code> starts a new column · <code>&lt;!-- name --&gt;</code> <code>&lt;!-- skills --&gt;</code> <code>&lt;!-- nuyen --&gt;</code> place the name block, skills and nuyen (left out: name and skills open the first column, nuyen closes the last)</p>
+    <textarea spellcheck="false" data-doctext>${esc(docOf(s))}</textarea>
+    <div class="ea"><button data-docsave>SAVE</button><button data-doccancel>CANCEL</button></div></div>`;
 }
 function structureOf(s: Sheet): Structure {
   const out: Record<string, unknown> = {};
@@ -175,12 +193,9 @@ function renderSheet() {
   if (jsonOpen === s.id) {
     return `<section id="sheet" class="w" style="--pc:${s.color}">${winHTML(`<div class="shh"><div class="hn"><h1>${esc(s.handle)}</h1></div></div><div class="sb">${jsonEditor(s)}</div>`)}</section>`;
   }
-  if (s.shared) {
-    return `<section id="sheet" class="w" style="--pc:${s.color}">${winHTML(`<div class="shh"><div class="hn"><h1>${esc(s.handle)}</h1></div></div>
-      <div class="sb">${sectionsBlock(s, Math.max(1, Math.min(3, s.sections.length)))}</div>`)}</section>`;
-  }
-  return `<section id="sheet" class="w" style="--pc:${s.color}">${winHTML(`<div class="shh"><div class="hn"><h1>${esc(s.handle)}</h1></div>${vitals(s)}</div>
-    <div class="sb"><div class="cols"><div>${nameBlock(s)}${skillsBlock(s)}</div><div>${sectionsBlock(s, 2)}</div></div></div>`)}</section>`;
+  const head = `<div class="shh"><div class="hn"><h1>${esc(s.handle)}</h1></div>${s.shared ? "" : vitals(s)}</div>`;
+  const body = gm && docOpen === s.id ? docEditor(s) : bodyBlock(s);
+  return `<section id="sheet" class="w" style="--pc:${s.color}">${winHTML(`${head}<div class="sb">${body}</div>`)}</section>`;
 }
 /** Tab+Hatch: the hatch starts as far right of the name as the name is right of the tab strip. */
 function hatchStart() {
@@ -195,7 +210,7 @@ function hatchStart() {
 /** True while the GM is typing somewhere; re-rendering would throw the input away. */
 function editing() {
   const a = document.activeElement as HTMLElement | null;
-  return !!(a && (a.isContentEditable || a.tagName === "INPUT" || a.tagName === "TEXTAREA")) || !!app.querySelector(".sbox textarea");
+  return !!(a && (a.isContentEditable || a.tagName === "INPUT" || a.tagName === "TEXTAREA")) || !!app.querySelector("[data-doctext],[data-jsontext]");
 }
 function render(force = false) {
   if (!force && editing()) {
@@ -204,7 +219,8 @@ function render(force = false) {
   }
   pending = false;
   document.body.classList.toggle("player", !gm);
-  if (open && !entryOf(open)) open = "";
+  // Forget a sheet that no longer exists, but not while the scene is still loading.
+  if (open && entries && entries.length && !entryOf(open)) open = "";
   const scroll = app.querySelector("#sheet .inner")?.scrollTop ?? 0;
   const show = entries && (entries.length || gm);
   app.innerHTML = !show ? "" : PART === "strip" ? renderSide() : PART === "sheet" ? renderSheet() : renderSide() + renderSheet();
@@ -241,10 +257,16 @@ async function updateScreen() {
   document.documentElement.style.setProperty("--screen-w", `${width}px`);
 }
 // The SDK may only be used once OBR is ready (the preview's mock backend is ready at once).
+let ready = false;
+let lastSize = "";
 function boot() {
+  ready = true;
+  lastSize = "";
+  sendSize();
   backend.onRole((isGM) => {
     if (isGM === gm && lastData) return;
     gm = isGM;
+    migrate();
     render(true);
   });
   backend.onSheets((next) => {
@@ -252,6 +274,7 @@ function boot() {
     if (data === lastData) return; // unrelated scene change (e.g. a window moved)
     lastData = data;
     entries = next;
+    migrate();
     render();
   });
   void updateScreen();
@@ -259,8 +282,9 @@ function boot() {
 }
 if (OBR.isAvailable) OBR.onReady(boot);
 else boot();
-let lastSize = "";
-new ResizeObserver(() => {
+/** Sizes the popover to the content; before OBR is ready this waits for boot(). */
+function sendSize() {
+  if (!ready) return;
   const r = app.getBoundingClientRect();
   const w = Math.ceil(r.width);
   const h = Math.ceil(r.height);
@@ -268,8 +292,23 @@ new ResizeObserver(() => {
   if (key === lastSize) return;
   lastSize = key;
   backend.resize(POPOVER, w, h);
-}).observe(app);
+}
+new ResizeObserver(sendSize).observe(app);
 document.fonts?.ready.then(hatchStart);
+
+/** GM only, once per client: older sheets with separate sections get a body document. */
+function migrate() {
+  if (!gm || PART === "sheet" || !entries) return;
+  for (const e of entries) {
+    if (e.sheet.doc !== undefined) continue;
+    const doc = docFromSections(e.sheet.sections ?? [], !!e.sheet.shared);
+    void backend.update(e.itemId, (x) => {
+      if (x.doc !== undefined) return;
+      x.doc = doc;
+      delete x.sections;
+    });
+  }
+}
 
 // ---------- interaction ----------
 function currentEntry() {
@@ -302,13 +341,14 @@ function roll(path: string) {
 
 app.addEventListener("click", (ev) => {
   const t = (ev.target as HTMLElement).closest<HTMLElement>(
-    "[data-open],[data-create],[data-roll],[data-nyd],[data-ny],[data-st],[data-ed],[data-add],[data-save],[data-cancel],[data-del],[data-json],[data-jsonsave],[data-jsoncancel]",
+    "[data-open],[data-create],[data-roll],[data-nyd],[data-ny],[data-st],[data-doc],[data-docsave],[data-doccancel],[data-json],[data-jsonsave],[data-jsoncancel]",
   );
   if (!t) return;
   const d = t.dataset;
   if (d.open !== undefined) {
     open = open === d.open ? "" : d.open;
     jsonOpen = "";
+    docOpen = "";
     store.set("open", open); // the sheet popover follows via the storage event
     return render(true);
   }
@@ -373,32 +413,27 @@ app.addEventListener("click", (ev) => {
     jsonOpen = "";
     return render(true);
   }
-  const box = t.closest<HTMLElement>(".sbox");
-  if (d.ed !== undefined && box) {
-    const s = currentEntry()?.sheet;
-    if (!s) return;
-    box.innerHTML = `<textarea spellcheck="false">${esc(s.sections[Number(box.dataset.sec)])}</textarea><div class="ea"><button data-save>SAVE</button><button data-cancel>CANCEL</button><button data-del>DELETE</button></div>`;
-    box.querySelector("textarea")!.focus();
+  if (d.doc !== undefined) {
+    docOpen = open;
+    render(true);
+    const ta = app.querySelector<HTMLTextAreaElement>("[data-doctext]");
+    ta?.focus();
+    ta?.setSelectionRange(0, 0);
     return;
   }
-  if (d.save !== undefined && box) {
-    const i = Number(box.dataset.sec);
-    const value = box.querySelector("textarea")!.value;
-    box.innerHTML = "";
-    update((s) => void (s.sections[i] = value));
+  if (d.doccancel !== undefined) {
+    docOpen = "";
     return render(true);
   }
-  if (d.cancel !== undefined) {
-    if (box) box.innerHTML = "";
+  if (d.docsave !== undefined) {
+    const value = app.querySelector<HTMLTextAreaElement>("[data-doctext]")!.value;
+    docOpen = "";
+    update((x) => {
+      x.doc = value.endsWith("\n") ? value : value + "\n";
+      delete x.sections;
+    });
     return render(true);
   }
-  if (d.del !== undefined && box) {
-    const i = Number(box.dataset.sec);
-    box.innerHTML = "";
-    update((s) => void s.sections.splice(i, 1));
-    return render(true);
-  }
-  if (d.add !== undefined) return update((s) => void s.sections.push("## Neuer Abschnitt\n- Eintrag"));
 });
 
 app.addEventListener("focusout", (ev) => {
@@ -426,5 +461,6 @@ window.addEventListener("storage", (ev) => {
   if (next === open) return;
   open = next;
   jsonOpen = "";
+  docOpen = "";
   render(true);
 });

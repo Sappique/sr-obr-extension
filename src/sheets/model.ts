@@ -3,6 +3,7 @@
  * metadata under SHEET_KEY; the sidebar renders everything from that.
  */
 import seed from "./seed-data.json";
+import { docFromSections } from "./doc";
 
 export const ID = "sappique.sr-obr";
 export const SHEET_KEY = `${ID}/sheet`;
@@ -61,9 +62,14 @@ export interface Sheet {
   attributes: Attribute[];
   cond: Record<Track, Condition>;
   nuyen: number;
-  /** Markdown sections; the one starting with "## Ausrüstung" also shows nuyen. */
-  sections: string[];
+  /** The sheet body as one Markdown document with layout comments (see doc.ts). */
+  doc?: string;
+  /** Before `doc`: separate Markdown sections. Migrated to `doc` by the GM client. */
+  sections?: string[];
 }
+
+/** The sheet body document; older sheets are converted on the fly until the GM migrates them. */
+export const docOf = (s: Sheet) => s.doc ?? docFromSections(s.sections ?? [], !!s.shared);
 
 /** The parts the GM edits as raw JSON (they rarely change). */
 export const STRUCTURE_KEYS = ["handle", "initials", "color", "meta", "attributes"] as const;
@@ -121,6 +127,7 @@ function sectionsFor(c: Partial<RawChar>): string[] {
   if (c.extra) out.push(list(c.extra)!);
   if (c.contacts?.length) out.push("## Kontakte\n" + c.contacts.map(([n, r]) => `- **${n}** – ${r}`).join("\n"));
   if (c.lifestyle) {
+    // Old section form; docFromSections lays it out as before and turns it into a plain list.
     const l = c.lifestyle;
     out.push(`## Lebensstil\n> [!Wohnort] ${l.Wohnort}\n> Ausgaben **${l.Ausgaben}** · Miete **${l.Miete}**`);
   }
@@ -155,7 +162,7 @@ export function seedCrew(): Sheet[] {
       p: { text: c.condition["psychisch"], state: SEED_STATE[c.id]?.[1] ?? "ok" },
     },
     nuyen: c.nuyen,
-    sections: sectionsFor(c),
+    doc: docFromSections(sectionsFor(c), false),
   }));
   const s = seed.shared as unknown as Partial<RawChar> & { nuyen: number };
   sheets.push({
@@ -170,7 +177,7 @@ export function seedCrew(): Sheet[] {
     attributes: [],
     cond: { k: { text: "", state: "ok" }, p: { text: "", state: "ok" } },
     nuyen: s.nuyen,
-    sections: sectionsFor(s),
+    doc: docFromSections(sectionsFor(s), true),
   });
   return sheets;
 }
