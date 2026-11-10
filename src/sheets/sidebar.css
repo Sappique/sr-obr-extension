@@ -13,8 +13,17 @@ button{font-family:inherit;cursor:pointer}
 
 /* popover content: strip + sheet side by side, vertically centred. Padding leaves room for
    the sheet's shadow plate (left/down 12px) and keeps the box symmetric around the centre. */
-#app{display:inline-flex;align-items:center;padding:12px 0 12px 16px}
-#app:empty{padding:0}
+#app{display:inline-flex;align-items:center;padding:12px 0 12px 16px;flex:none}
+/* In OBR the strip and the sheet are two popovers (see SHEET_POPOVER in model.ts).
+   Strip: centred popover of constant size; right padding leaves room for the active marker.
+   Sheet: popover with a fixed top-left corner; the page centres the sheet with padding-top,
+   left/bottom padding leaves room for the shadow plate. */
+html.part-strip,html.part-strip body{height:100%}
+html.part-strip body{display:flex;align-items:center}
+html.part-strip #app{padding-right:20px}
+html.part-sheet #app{display:inline-block;padding:0 0 12px 12px;vertical-align:top}
+html.part-sheet #sheet{margin-left:0}
+#app:empty{padding:0!important}
 
 /* ---------- window construction (design 14) ---------- */
 .w{position:relative;flex:none;--cut:22px;--clip:polygon(0 0,calc(100% - var(--cut)) 0,100% var(--cut),100% 100%,var(--cut) 100%,0 calc(100% - var(--cut)))}

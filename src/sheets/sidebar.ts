@@ -16,6 +16,9 @@ import { Backend, Entry, mockBackend, obrBackend } from "./backend";
 import { esc, markdownToHtml } from "./markdownHtml";
 import {
   dieSize,
+  SHEET_POPOVER,
+  SHEET_POPOVER_POS,
+  SIDEBAR_POPOVER,
   State,
   STATE_COL,
   STATE_NAME,
@@ -33,6 +36,17 @@ import { startMonitors } from "./monitors";
 const backend: Backend = OBR.isAvailable ? obrBackend() : mockBackend();
 // Standalone preview (no OBR): neutral background, placed like the popover (left, vertically centred).
 if (!OBR.isAvailable) document.documentElement.classList.add("standalone");
+/**
+ * In OBR the strip and the open sheet are two popovers showing this page ("strip" / "sheet",
+ * see SHEET_POPOVER); the standalone preview shows both in one page ("all").
+ */
+const PART: "strip" | "sheet" | "all" = OBR.isAvailable
+  ? new URLSearchParams(location.search).get("part") === "sheet"
+    ? "sheet"
+    : "strip"
+  : "all";
+document.documentElement.classList.add(`part-${PART}`);
+const POPOVER = PART === "sheet" ? SHEET_POPOVER : SIDEBAR_POPOVER;
 
 const store = {
   get(k: string, d: string) {
@@ -52,6 +66,7 @@ const store = {
 };
 
 let entries: Entry[] | null = null;
+let screenH = 900;
 let gm = false;
 let open = store.get("open", "");
 let lastData = "";
@@ -191,10 +206,20 @@ function render(force = false) {
   document.body.classList.toggle("player", !gm);
   if (open && !entryOf(open)) open = "";
   const scroll = app.querySelector("#sheet .inner")?.scrollTop ?? 0;
-  app.innerHTML = entries && (entries.length || gm) ? renderSide() + renderSheet() : "";
+  const show = entries && (entries.length || gm);
+  app.innerHTML = !show ? "" : PART === "strip" ? renderSide() : PART === "sheet" ? renderSheet() : renderSide() + renderSheet();
   const inner = app.querySelector("#sheet .inner");
   if (inner) inner.scrollTop = scroll;
   hatchStart();
+  placeSheet();
+}
+/** Sheet popover: its top is fixed on screen, so centre the sheet vertically inside it. */
+function placeSheet() {
+  if (PART !== "sheet") return;
+  const sheet = app.querySelector<HTMLElement>("#sheet");
+  if (!sheet) return;
+  const off = Math.max(0, Math.round((screenH - sheet.offsetHeight) / 2 - SHEET_POPOVER_POS.top));
+  app.style.paddingTop = `${off}px`;
 }
 const afterEdit = () => {
   if (pending) render(true);
@@ -209,7 +234,10 @@ startMonitors(app, stateOf);
 // ---------- popover size follows the content ----------
 async function updateScreen() {
   const { width, height } = await backend.screenSize();
+  const changed = height !== screenH;
+  screenH = height;
   document.documentElement.style.setProperty("--screen-h", `${height}px`);
+  if (changed) placeSheet();
   document.documentElement.style.setProperty("--screen-w", `${width}px`);
 }
 // The SDK may only be used once OBR is ready (the preview's mock backend is ready at once).
@@ -239,7 +267,7 @@ new ResizeObserver(() => {
   const key = `${w}x${h}`;
   if (key === lastSize) return;
   lastSize = key;
-  backend.resize(w, h);
+  backend.resize(POPOVER, w, h);
 }).observe(app);
 document.fonts?.ready.then(hatchStart);
 
@@ -281,7 +309,7 @@ app.addEventListener("click", (ev) => {
   if (d.open !== undefined) {
     open = open === d.open ? "" : d.open;
     jsonOpen = "";
-    store.set("open", open);
+    store.set("open", open); // the sheet popover follows via the storage event
     return render(true);
   }
   if (d.roll !== undefined) return roll(d.roll);
@@ -388,4 +416,15 @@ app.addEventListener("keydown", (ev) => {
     ev.preventDefault();
     el.blur();
   }
+});
+
+// The strip and sheet popovers are separate pages of the same origin: the strip writes the
+// open sheet to localStorage, the sheet page follows it.
+window.addEventListener("storage", (ev) => {
+  if (ev.key !== "vtt-sheets-open") return;
+  const next = ev.newValue ?? "";
+  if (next === open) return;
+  open = next;
+  jsonOpen = "";
+  render(true);
 });

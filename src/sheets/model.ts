@@ -7,6 +7,15 @@ import seed from "./seed-data.json";
 export const ID = "sappique.sr-obr";
 export const SHEET_KEY = `${ID}/sheet`;
 export const SIDEBAR_POPOVER = `${ID}/sidebar`;
+/**
+ * The open sheet lives in its own popover, anchored at a fixed top-left screen position.
+ * OBR applies a new popover height a few frames before it re-centres the popover, so a
+ * centred popover that changes height visibly jumps. Keeping the strip in a popover of
+ * constant size and growing the sheet popover only to the right and down avoids that.
+ */
+export const SHEET_POPOVER = `${ID}/sheet`;
+/** Screen position of the sheet popover: left edge = sheet shadow plate, top above any sheet. */
+export const SHEET_POPOVER_POS = { left: 98, top: 60 };
 export const DICE_POPOVER = `${ID}/dice`;
 export const ROLL_CHANNEL = `${ID}/roll`;
 

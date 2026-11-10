@@ -4,7 +4,7 @@
  */
 import OBR, { buildShape, Item } from "@owlbear-rodeo/sdk";
 import { RollMessage } from "../dice/roll";
-import { ROLL_CHANNEL, seedCrew, Sheet, SHEET_KEY, SIDEBAR_POPOVER } from "./model";
+import { ROLL_CHANNEL, seedCrew, Sheet, SHEET_KEY } from "./model";
 
 export interface Entry {
   itemId: string;
@@ -18,7 +18,8 @@ export interface Backend {
   /** Applies `fn` to the latest version of the sheet (one undoable scene change). */
   update(itemId: string, fn: (sheet: Sheet) => void): Promise<void>;
   createCrew(): Promise<void>;
-  resize(width: number, height: number): void;
+  /** Sizes the popover this page lives in (`popoverId`) to its content. */
+  resize(popoverId: string, width: number, height: number): void;
   screenSize(): Promise<{ width: number; height: number }>;
   roll(message: RollMessage): void;
 }
@@ -94,9 +95,9 @@ export function obrBackend(): Backend {
     async createCrew() {
       await OBR.scene.items.addItems(seedCrew().map(carrier));
     },
-    resize(width, height) {
-      void OBR.popover.setWidth(SIDEBAR_POPOVER, width);
-      void OBR.popover.setHeight(SIDEBAR_POPOVER, height);
+    resize(popoverId, width, height) {
+      void OBR.popover.setWidth(popoverId, width);
+      void OBR.popover.setHeight(popoverId, height);
     },
     async screenSize() {
       const [width, height] = await Promise.all([OBR.viewport.getWidth(), OBR.viewport.getHeight()]);
@@ -137,7 +138,7 @@ export function mockBackend(): Backend {
     async createCrew() {
       emit();
     },
-    resize(width, height) {
+    resize(_popoverId, width, height) {
       document.documentElement.dataset.size = `${width}×${height}`;
     },
     async screenSize() {

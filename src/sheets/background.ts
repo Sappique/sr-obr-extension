@@ -4,7 +4,7 @@
  * toolbar column and grid-scale button). Both size themselves to their content.
  */
 import OBR from "@owlbear-rodeo/sdk";
-import { DICE_POPOVER, SIDEBAR_POPOVER } from "./model";
+import { DICE_POPOVER, SHEET_POPOVER, SHEET_POPOVER_POS, SIDEBAR_POPOVER } from "./model";
 
 /** Space kept free right of the dice popups: OBR's right toolbar and its "5ft" grid-scale button. */
 const DICE_RIGHT_GAP = 80;
@@ -32,7 +32,7 @@ OBR.onReady(async () => {
   // Not awaited: popover.open does not always resolve, and the dice popover must open regardless.
   void OBR.popover.open({
     id: SIDEBAR_POPOVER,
-    url: "/sidebar.html",
+    url: "/sidebar.html?part=strip",
     width: 0,
     height: 0,
     anchorOrigin: { horizontal: "LEFT", vertical: "CENTER" },
@@ -40,6 +40,22 @@ OBR.onReady(async () => {
     disableClickAway: true,
     hidePaper: true,
     marginThreshold: 8,
+  });
+  // The open sheet: its own popover at a fixed top-left position, sized by its page
+  // (1×1 to start: a position-anchored popover opened at 0×0 never loads its page).
+  await new Promise((r) => setTimeout(r, 700));
+  void OBR.popover.open({
+    id: SHEET_POPOVER,
+    url: "/sidebar.html?part=sheet",
+    width: 1,
+    height: 1,
+    anchorReference: "POSITION",
+    anchorPosition: SHEET_POPOVER_POS,
+    anchorOrigin: { horizontal: "LEFT", vertical: "TOP" },
+    transformOrigin: { horizontal: "LEFT", vertical: "TOP" },
+    disableClickAway: true,
+    hidePaper: true,
+    marginThreshold: 0,
   });
   // The dice popover is anchored to a screen position; follow window size changes.
   // Opening a second popover in the same tick leaves it blank, so give the sidebar a moment.
