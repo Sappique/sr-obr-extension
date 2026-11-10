@@ -16,3 +16,11 @@ input[type="text"], select, textarea {
 select option { background: #07080c; }
 textarea { flex: 1; min-height: 0; resize: none; font: 12px/1.4 monospace; }
 input:focus, select:focus, textarea:focus { outline: none; border-color: #f5e10a; }
+.tools { display: flex; flex-wrap: wrap; gap: 4px; }
+.tools:empty { display: none; }
+.tools button { background: none; border: 1px solid #3a434b; color: #f5e10a; font: 11px monospace; letter-spacing: .06em; padding: 3px 7px; cursor: pointer; }
+.tools button:hover { border-color: #f5e10a; background: rgba(245, 225, 10, .12); }
+details { font-size: 11px; color: #b3c0c6; }
+details[hidden] { display: none; }
+summary { cursor: pointer; }
+pre { margin: 4px 0 0; white-space: pre-wrap; font: 11px/1.35 monospace; color: #b3c0c6; max-height: 140px; overflow: auto; }

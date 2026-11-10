@@ -2,7 +2,7 @@ import OBR, { Curve, Item, Path, Vector2 } from "@owlbear-rodeo/sdk";
 import { Fonts, loadFonts } from "../core/fonts";
 import { migrateOnSceneReady } from "../core/migrate";
 import { Box, legacyHubIsA, outlineMatches, routeLinks, windowOutline } from "../core/geometry";
-import { UI_SCALE, windowTokens } from "../core/style";
+import { SCALE, UI_SCALE, windowTokens } from "../core/style";
 import {
   buildFlowEffect,
   buildFrame,
@@ -34,7 +34,8 @@ import {
   toObr,
 } from "./items";
 import { applyWrites, frameBounds, stableTop, TopMemory } from "./frameState";
-import { hashString, layoutWindow, STYLE_VERSION, WindowSpec } from "./layout";
+import { hashString, layoutWindow, STYLE_VERSION, WindowKind, WindowSpec } from "./layout";
+import { SAMPLES } from "./samples";
 import { extUrl } from "../core/url";
 
 const ICON = (name: string) => extUrl(`icons/${name}.svg`);
@@ -373,10 +374,11 @@ async function syncFlow(items: Item[]) {
  * A window with its parts already laid out, exactly as sync would render it,
  * so creating one costs a single write instead of several sync round trips.
  */
-async function buildWindow(position: Vector2, spec: WindowSpec, visible = true): Promise<Item[]> {
+async function buildWindow(position: Vector2, spec: WindowSpec, visible = true, designWidth?: number): Promise<Item[]> {
   const t = windowTokens(uiScale);
   const fonts = await loadFonts();
-  const width = Math.max(t.minWidth, Math.round(t.defaultWidth));
+  // designWidth is in design px (x SCALE x window scale = scene units).
+  const width = Math.max(t.minWidth, Math.round(designWidth ? designWidth * SCALE * uiScale : t.defaultWidth));
   const layout = layoutWindow(fonts, spec, width, uiScale);
   const frame = buildFrame(position, windowOutline(width, layout.height, t.cut), spec, t);
   frame.visible = visible;
@@ -395,17 +397,27 @@ function createTool() {
     icons: [{ icon: ICON("window"), label: "Window", filter: { roles: ["GM"] } }],
     defaultMode: MODE_ID,
   });
-  OBR.tool.createMode({
-    id: MODE_ID,
-    icons: [{ icon: ICON("window"), label: "Place window", filter: { activeTools: [TOOL_ID] } }],
-    cursors: [{ cursor: "crosshair" }],
-    async onToolClick(_, event) {
-      const built = await buildWindow(event.pointerPosition, DEFAULT_SPEC);
-      await OBR.scene.items.addItems(built);
-      void OBR.player.select([built[0].id]);
-      await OBR.tool.activateTool("rodeo.owlbear.tool/move").catch(() => undefined);
-    },
-  });
+  // One placement mode per window kind; each starts with sample content.
+  // Feed and influence charts come later; their kinds are only placeholders.
+  const modes: [WindowKind, string, string][] = [
+    ["markdown", MODE_ID, "window"],
+    ["calendar", `${ID}/calendar-place`, "calendar"],
+  ];
+  for (const [kind, id, icon] of modes) {
+    OBR.tool.createMode({
+      id,
+      icons: [{ icon: ICON(icon), label: `Place ${SAMPLES[kind].label.toLowerCase()}`, filter: { activeTools: [TOOL_ID] } }],
+      cursors: [{ cursor: "crosshair" }],
+      async onToolClick(_, event) {
+        const sample = SAMPLES[kind];
+        const spec = kind === "markdown" ? DEFAULT_SPEC : sample.spec;
+        const built = await buildWindow(event.pointerPosition, spec, true, sample.width);
+        await OBR.scene.items.addItems(built);
+        void OBR.player.select([built[0].id]);
+        await OBR.tool.activateTool("rodeo.owlbear.tool/move").catch(() => undefined);
+      },
+    });
+  }
 }
 
 const frameFilter = { key: ["metadata", ROLE_KEY], value: "frame" };

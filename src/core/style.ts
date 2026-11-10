@@ -10,6 +10,16 @@ export const COLOR = {
   black: "#000000",
   body: "#c9d3d8",
   dim: "#74828a",
+  red: "#ff2848",
+  grey: "#8a96a0",
+  steel: "#3a434b",
+};
+
+/** Runner identity colours (HANDOFF). */
+export const RUNNER_COLORS: Record<string, string> = {
+  phlox: "#3fd87f",
+  hawk: "#ff8a1f",
+  peppermint: "#a46cff",
 };
 
 export const UI_SCALE = { default: 1, min: 0.5, max: 2, step: 0.05 };

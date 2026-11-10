@@ -1,4 +1,6 @@
 import { calloutStyle } from "../core/callouts";
+import { BodyContext, bodyContext } from "../core/body";
+import { calendarBody } from "../calendar/body";
 import { FontKey, Fonts } from "../core/fonts";
 import {
   Cmd,
@@ -21,11 +23,16 @@ import { baselineOffset, drawText, measureText } from "../core/vectorText";
  * becomes its own parts with coordinates relative to the block, so edits and
  * reflows reuse unchanged outlines and only move them.
  */
+/** What the body shows. "markdown" is the plain text window; the others parse
+ * the same text field with their own line format (see src/<kind>/format.ts). */
+export type WindowKind = "markdown" | "calendar" | "feed" | "influence";
+
 export interface WindowSpec {
   title: string;
   tag: string;
   variant: "standard" | "brief";
   markdown: string;
+  kind?: WindowKind;
 }
 
 /** "base" is the header band: it must stay below every other fill. */
@@ -48,6 +55,13 @@ export interface WindowLayout {
 /** About 90 kB of JSON; longer text splits into several Path items. */
 const MAX_COMMANDS_PER_PART = 3000;
 
+type BodyRenderer = (ctx: BodyContext, source: string, x: number, y: number, width: number) => number;
+const BODIES: Record<Exclude<WindowKind, "markdown">, BodyRenderer> = {
+  calendar: calendarBody,
+  feed: (ctx, source, x, y, width) => ctx.markdown(source, x, y, width),
+  influence: (ctx, source, x, y, width) => ctx.markdown(source, x, y, width),
+};
+
 export function hashString(text: string): string {
   let a = 0x811c9dc5;
   let b = 0x1b873593;
@@ -63,7 +77,7 @@ export const STYLE_VERSION = hashString(JSON.stringify([windowTokens(UI_SCALE.de
 
 const round = (n: number) => Math.round(n * 10) / 10;
 
-class Canvas {
+export class Canvas {
   parts: Part[] = [];
   private groups = new Map<string, Cmd[]>();
   private windowGroups = new Map<string, Cmd[]>();
@@ -115,7 +129,7 @@ class Canvas {
   }
 }
 
-interface Base {
+export interface Base {
   font: FontKey;
   boldFont: FontKey;
   size: number;
@@ -146,9 +160,9 @@ interface Word {
   spaceWidth: number;
 }
 
-type Line = { pieces: Piece[]; width: number };
+export type Line = { pieces: Piece[]; width: number };
 
-class Renderer {
+export class Renderer {
   constructor(
     private fonts: Fonts,
     private canvas: Canvas,
@@ -309,7 +323,7 @@ class Renderer {
     this.canvas.flush(top);
   }
 
-  private text(runs: Run[], base: Base, x: number, y: number, width: number): number {
+  text(runs: Run[], base: Base, x: number, y: number, width: number): number {
     const lines = this.flow(runs, base, width);
     this.draw(lines, base, x, y);
     return y + lines.length * base.lineHeight;
@@ -372,7 +386,7 @@ class Renderer {
     }
   }
 
-  private heading(runs: Run[], depth: number, x: number, y: number, width: number): number {
+  heading(runs: Run[], depth: number, x: number, y: number, width: number): number {
     const h = this.t.heading;
     const size = h.sizes[depth - 1];
     const base: Base = {
@@ -561,9 +575,13 @@ export function layoutWindow(
     font: "regular", boldFont: "bold", size: b.size, lineHeight: b.size * b.lineHeight,
     color: COLOR.body, boldColor: COLOR.white,
   };
-  const end = renderer.blocks(
-    parseMarkdown(spec.markdown), b.padX, headerHeight + b.padTop, width - 2 * b.padX, base,
-  );
+  const kind = spec.kind ?? "markdown";
+  const bodyX = b.padX;
+  const bodyY = headerHeight + b.padTop;
+  const bodyWidth = width - 2 * b.padX;
+  const end = kind === "markdown"
+    ? renderer.blocks(parseMarkdown(spec.markdown), bodyX, bodyY, bodyWidth, base)
+    : BODIES[kind](bodyContext(fonts, canvas, renderer, t, scale, base), spec.markdown, bodyX, bodyY, bodyWidth);
   const height = Math.max(end + b.padBottom, t.cut * 2 + headerHeight);
   canvas.flushWindowLevel();
 
