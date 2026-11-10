@@ -69,7 +69,7 @@ async function play(msg: RollMessage) {
         return `<div class="dv rolling" data-i="${i}"><div class="face"><svg viewBox="0 0 60 60"><polygon points="${s.points}"/></svg><span class="num" style="--ny:${s.dy}px">?</span></div><span class="lab">D${d.size}</span></div>`;
       })
       .join("")}<div class="res">RESULT<b>${out.total}</b></div></div></div></div>`;
-  stack.appendChild(el);
+  await enter(el);
   const dv = [...el.querySelectorAll<HTMLElement>(".dv")];
   const num = dv.map((d) => d.querySelector<HTMLElement>(".num")!);
 
@@ -127,10 +127,23 @@ async function play(msg: RollMessage) {
   await wait(HOLD_MS);
   el.classList.add("gone");
   await wait(550);
+  // collapse the empty slot so popups above glide down instead of jumping
+  if (!reduced && stack.children.length > 1) {
+    el.style.overflow = "hidden";
+    await el.animate(
+      [{ height: `${el.offsetHeight}px`, marginTop: "0px" }, { height: "0px", marginTop: `-${GAP}px` }],
+      { duration: 220, easing: "ease-in", fill: "forwards" },
+    ).finished;
+  }
   el.remove();
 }
 
 // ---------- popover size follows the content ----------
+// OBR applies a new popover size a frame or two after it is requested. The stack is anchored
+// bottom-right (as is the popover), so shrinking after a removal never moves anything visible.
+// Growing must happen BEFORE a new popup enters the flow, or it would be clipped for a frame
+// and the older popups would jump: enter() measures it out of flow, grows the popover, waits
+// until the new size has arrived, and only then inserts it.
 let lastSize = "";
 function setSize(w: number, h: number) {
   const key = `${w}x${h}`;
@@ -142,10 +155,38 @@ function setSize(w: number, h: number) {
   } else document.documentElement.dataset.size = key;
 }
 new ResizeObserver(() => {
+  if (stack.querySelector(".measure")) return; // enter() owns the size while it grows the popover
   if (!stack.children.length) return setSize(0, 0);
   const r = stack.getBoundingClientRect();
   setSize(Math.ceil(r.width), Math.ceil(r.height));
 }).observe(stack);
+
+const PAD_X = 18; // #stack padding left + right
+const PAD_Y = 18; // #stack padding top + bottom
+const GAP = 14;
+let entering = Promise.resolve();
+
+/** Inserts a popup only once the popover is big enough to show it (one at a time). */
+function enter(el: HTMLElement) {
+  entering = entering.then(async () => {
+    el.classList.add("measure");
+    stack.appendChild(el);
+    const s = stack.getBoundingClientRect();
+    const e = el.getBoundingClientRect();
+    const others = stack.children.length - 1;
+    const w = Math.ceil(Math.max(others ? s.width : 0, e.width + PAD_X));
+    const h = Math.ceil((others ? s.height + GAP : PAD_Y) + e.height);
+    if (OBR.isAvailable && (innerWidth < w || innerHeight < h)) {
+      setSize(w, h);
+      const t0 = performance.now();
+      while ((innerWidth < w || innerHeight < h) && performance.now() - t0 < 400) {
+        await new Promise((r) => requestAnimationFrame(r));
+      }
+    }
+    el.classList.remove("measure");
+  });
+  return entering;
+}
 
 // ---------- incoming rolls ----------
 const receive = (data: unknown) => {
