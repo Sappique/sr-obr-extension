@@ -1,0 +1,516 @@
+{
+ "characters": [
+  {
+   "id": "phlox",
+   "handle": "Phlox",
+   "color": "#58d36b",
+   "meta": {
+    "Name": "Carlos Palacios",
+    "Pronomen": "er/ihn",
+    "Metatyp": "Mensch",
+    "Alter": 30,
+    "Herkunft": "Chicago",
+    "Rolle": "Magier"
+   },
+   "condition": {
+    "körperlich": "unversehrt",
+    "psychisch": "unversehrt"
+   },
+   "skills": [
+    [
+     "D6",
+     "PHYSISCH",
+     []
+    ],
+    [
+     "D6",
+     "GESCHICK",
+     []
+    ],
+    [
+     "D6",
+     "SOZIAL",
+     []
+    ],
+    [
+     "D4",
+     "DIGITAL",
+     []
+    ],
+    [
+     "D10",
+     "TECHNIK",
+     [
+      [
+       "D10",
+       "Sprengstoff"
+      ],
+      [
+       "+D4",
+       "Mehrstufig"
+      ]
+     ]
+    ],
+    [
+     "D6",
+     "MEDIZIN",
+     []
+    ],
+    [
+     "D6",
+     "MAGIE",
+     [
+      [
+       "D8",
+       "Spruchzauber"
+      ],
+      [
+       "+D4",
+       "Illusionen"
+      ],
+      [
+       "D6",
+       "Alchemie"
+      ],
+      [
+       "D8",
+       "Askennen"
+      ],
+      [
+       "D4",
+       "Beschwören"
+      ]
+     ]
+    ]
+   ],
+   "special": {
+    "title": "Spruchzauber",
+    "items": [
+     [
+      "Trugbild",
+      "Ein Trugbild einer Wahl erscheint vor aller Augen. Mit größerer Anstrengung kann stattdessen eine bewegte Illusion oder Geräusche entstehen."
+     ],
+     [
+      "Inferno",
+      "In deinem Sichtfeld entsteht ein Feuersturm, der alles in seinem Inneren verbrennt."
+     ],
+     [
+      "Schilde zerschmettern",
+      "Die Rüstung und Panzerung von Personen oder Fahrzeugen zersplittert in tausend Teile."
+     ]
+    ]
+   },
+   "extra": {
+    "title": "Alchemie",
+    "items": [
+     [
+      "Aqua Umbra",
+      "Eine leicht ölige dickflüssige Paste, die Wände oder Türen durchlässig macht. Ist von der anderen Seite nicht sichtbar. (~1.000¥ für Zutaten)"
+     ]
+    ]
+   },
+   "contacts": [
+    [
+     "Bob Sprengmeister",
+     "Sprengstoff Schmuggler"
+    ],
+    [
+     "P. Ivan",
+     "Talismanhändler"
+    ]
+   ],
+   "lifestyle": {
+    "Wohnort": "Docklands Theme, kleine Wohnung",
+    "Ausgaben": "50 ¥ / Tag",
+    "Miete": "3.000 ¥ / Monat"
+   },
+   "gear": [
+    [
+     "Waffen & Panzerung",
+     [
+      "Ares Mini (leichte Pistole)",
+      "Armbrust",
+      "Alltagskleidung mit versteckter Tasche",
+      "Gepanzerte Weste",
+      "C-4 mit Fernzünder x400g",
+      "Splittergranate x3",
+      "Deepweed x3",
+      "Deepweed-Bliss x5"
+     ]
+    ],
+    [
+     "Technik",
+     [
+      "Commlink"
+     ]
+    ],
+    [
+     "Alchemie",
+     [
+      "Aqua Umbra (hält ca. eine Woche)"
+     ]
+    ],
+    [
+     "sonstiges",
+     [
+      "Trockeneigen Block x1kg"
+     ]
+    ]
+   ],
+   "nuyen": 3300
+  },
+  {
+   "id": "hawk",
+   "handle": "Hawk",
+   "color": "#ff5a3c",
+   "meta": {
+    "Name": "Eagon Shepherd",
+    "Pronomen": "er/ihn",
+    "Metatyp": "Elf",
+    "Alter": 27,
+    "Herkunft": "???",
+    "Rolle": "Hacker/Rigger"
+   },
+   "condition": {
+    "körperlich": "gebrochener Knöchel",
+    "psychisch": "unversehrt"
+   },
+   "skills": [
+    [
+     "D4",
+     "PHYSISCH",
+     [
+      [
+       "D4",
+       "Heimlichkeit"
+      ]
+     ]
+    ],
+    [
+     "D6",
+     "GESCHICK",
+     [
+      [
+       "D6",
+       "Fernkampf"
+      ]
+     ]
+    ],
+    [
+     "D6",
+     "SOZIAL",
+     [
+      [
+       "D4",
+       "Täuschen"
+      ]
+     ]
+    ],
+    [
+     "D8",
+     "DIGITAL",
+     [
+      [
+       "D6",
+       "Software"
+      ],
+      [
+       "D6",
+       "Hacking"
+      ]
+     ]
+    ],
+    [
+     "D8",
+     "TECHNIK",
+     [
+      [
+       "D6",
+       "Flugdrohnen"
+      ],
+      [
+       "+D4",
+       "Spionage"
+      ],
+      [
+       "D4",
+       "Elektronik"
+      ],
+      [
+       "D4",
+       "Mechanik"
+      ],
+      [
+       "+D4",
+       "Improvisieren"
+      ]
+     ]
+    ],
+    [
+     "D6",
+     "MEDIZIN",
+     [
+      [
+       "D4",
+       "Erste Hilfe"
+      ]
+     ]
+    ]
+   ],
+   "special": {
+    "title": "Bodytech",
+    "items": [
+     [
+      "Direktes Neuronales Interface",
+      "Winziges Gerät am Hirnstamm. Ermöglicht das Einblenden von AR Elementen und deren Bedienung ohne weitere Ausrüstung."
+     ],
+     [
+      "Auditiver Booster",
+      "Unauffälliges Gerät im Gehörgang. Erlaubt das genaue Analysieren, Speichern und Vergleichen von Geräuschen."
+     ]
+    ]
+   },
+   "extra": {
+    "title": "Drohnen",
+    "items": [
+     [
+      "NeoNET Crawler",
+      "Winziges sechsbeiniges Läuferdrohne, mit Standard- und Infrarotkamera."
+     ],
+     [
+      "MTC Fly-Spy",
+      "Als Insekt getarnt, fragile, kann nur in geschlossenen Räumen fliegen."
+     ]
+    ]
+   },
+   "contacts": [
+    [
+     "Evan Wilskin",
+     "Mechaniker vom Irish Mob"
+    ],
+    [
+     "Professor Days",
+     "Ehemaliger Professor"
+    ],
+    [
+     "Trix",
+     "Drohnen Mechanikerin"
+    ]
+   ],
+   "lifestyle": {
+    "Wohnort": "Harrow Ost, kleine Wohnung",
+    "Ausgaben": "50 ¥ / Tag",
+    "Miete": "3.000 ¥ / Monat"
+   },
+   "gear": [
+    [
+     "Waffen & Panzerung",
+     [
+      "Ingram Smartgun mit Schalldämpfer",
+      "Panzermantel",
+      "Gewehr für Drohne"
+     ]
+    ],
+    [
+     "Technik",
+     [
+      "Commlink",
+      "Microdeck Summit",
+      "CompuForce Task Master",
+      "Business focused Data Analysis Zertifikat"
+     ]
+    ]
+   ],
+   "nuyen": 5830
+  },
+  {
+   "id": "peppermint",
+   "handle": "Peppermint",
+   "color": "#b06cff",
+   "meta": {
+    "Name": "Tandy Smith",
+    "Pronomen": "sie/ihr",
+    "Metatyp": "Mensch",
+    "Alter": 30,
+    "Herkunft": "London",
+    "Rolle": "Face"
+   },
+   "condition": {
+    "körperlich": "frisch operierte Hand",
+    "psychisch": "unversehrt"
+   },
+   "skills": [
+    [
+     "D8",
+     "PHYSISCH",
+     [
+      [
+       "D6",
+       "Nahkampf"
+      ],
+      [
+       "+D4",
+       "Entwaffnen"
+      ],
+      [
+       "D8",
+       "Athletik"
+      ]
+     ]
+    ],
+    [
+     "D6",
+     "GESCHICK",
+     []
+    ],
+    [
+     "D8",
+     "SOZIAL",
+     [
+      [
+       "D6",
+       "Menschenkenntnis"
+      ],
+      [
+       "D6",
+       "Täuschen"
+      ],
+      [
+       "+D4",
+       "Ungefährlich wirken"
+      ],
+      [
+       "D6",
+       "Verhandeln"
+      ]
+     ]
+    ],
+    [
+     "D4",
+     "DIGITAL",
+     []
+    ],
+    [
+     "D6",
+     "TECHNIK",
+     []
+    ],
+    [
+     "D6",
+     "MEDIZIN",
+     [
+      [
+       "D4",
+       "Erste Hilfe"
+      ]
+     ]
+    ],
+    [
+     "D4",
+     "MAGIE",
+     [
+      [
+       "D4",
+       "Antimagie"
+      ]
+     ]
+    ]
+   ],
+   "special": {
+    "title": "Adeptenkräfte",
+    "items": [
+     [
+      "Schattenschleichen",
+      "Du hast gelernt, mit den Schatten zu verschmelzen. Solange du in der Dunkelheit bleibst, kann dich kein Metamensch entdecken."
+     ],
+     [
+      "Geckohände",
+      "Deine Hände und Füße kleben mit magischer Hilfe an Wänden und Decken."
+     ],
+     [
+      "Geschwindigkeitsschub",
+      "Für kurze Zeit deine Bewegungs- und Reaktionsgeschwindigkeit verdoppeln. Nach dem Abklingen bist du erschöpft."
+     ]
+    ]
+   },
+   "extra": null,
+   "contacts": [
+    [
+     "Tyrone Adika",
+     "Bio-Thaumaturgie Wissenschaftler an der University of London"
+    ],
+    [
+     "Linda Ly",
+     "Magische Tattoo Künstlerin der Wizgang Cuervo con tres"
+    ]
+   ],
+   "lifestyle": {
+    "Wohnort": "Harrow Zentrum, kleine Wohnung",
+    "Ausgaben": "50 ¥ / Tag",
+    "Miete": "2.500 ¥ / Monat"
+   },
+   "gear": [
+    [
+     "Waffen & Panzerung",
+     [
+      "Schockhandschuh",
+      "Ruger Warhammer",
+      "Gepanzerte Weste"
+     ]
+    ],
+    [
+     "Medizin & Drogen",
+     [
+      "Stim patch x2",
+      "Med Bag"
+     ]
+    ],
+    [
+     "Technik",
+     [
+      "Commlink",
+      "DNI Pfleger"
+     ]
+    ],
+    [
+     "sonstiges",
+     [
+      "Kabelbinder"
+     ]
+    ]
+   ],
+   "nuyen": 6327
+  }
+ ],
+ "shared": {
+  "handle": "gemeinsam",
+  "contacts": [
+   [
+    "Abigale",
+    "Fixerin, Westminster"
+   ]
+  ],
+  "gear": [
+   [
+    "Fahrzeuge",
+    [
+     "Ford Transit (Hawk)",
+     "Kawasaki Ninja (Peppermint)"
+    ]
+   ],
+   [
+    "Waffen",
+    [
+     "Ingram Smartgun (Gebrauchsspuren)"
+    ]
+   ],
+   [
+    "sonstiges",
+    [
+     "Safehouse-Schlüssel Docklands"
+    ]
+   ]
+  ],
+  "nuyen": 5700
+ }
+}

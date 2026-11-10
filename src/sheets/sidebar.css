@@ -1,0 +1,196 @@
+/* Crew sidebar + character sheet (OBR popover). Ported from designs/16-crew-sheets.html (locked). */
+:root{
+  --y:#f5e10a; --y-rgb:245,225,10; --on-y:#000; --c:#5fcfdc; --r:#ff2848;
+  --panel:#07080c; --line:rgba(95,207,220,.18);
+  --txt:#e3e9ec; --soft:#b3c0c6; --body:#c9d3d8; --dim:#74828a; --steel:#3a434b;
+  --disp:'Rajdhani',sans-serif; --orb:'Orbitron',sans-serif; --mono:'Share Tech Mono',monospace;
+  --screen-h:900px; --screen-w:1600px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:transparent;color:var(--txt);font-family:var(--disp);-webkit-font-smoothing:antialiased;overflow:hidden}
+button{font-family:inherit;cursor:pointer}
+@keyframes blink{50%{opacity:.25}}
+
+/* popover content: strip + sheet side by side, vertically centred. Padding leaves room for
+   the sheet's shadow plate (left/down 12px) and keeps the box symmetric around the centre. */
+#app{display:inline-flex;align-items:center;padding:12px 0 12px 16px}
+#app:empty{padding:0}
+
+/* ---------- window construction (design 14) ---------- */
+.w{position:relative;flex:none;--cut:22px;--clip:polygon(0 0,calc(100% - var(--cut)) 0,100% var(--cut),100% 100%,var(--cut) 100%,0 calc(100% - var(--cut)))}
+.w .plate{position:absolute;inset:0;transform:translate(-12px,12px);background:repeating-linear-gradient(45deg,rgba(var(--y-rgb),.34) 0 4px,transparent 4px 11px);clip-path:var(--clip)}
+.w .frame{position:relative;padding:3px;background:var(--y);clip-path:var(--clip)}
+.w .inner{position:relative;background:var(--panel);clip-path:var(--clip)}
+
+/* ---------- sidebar strip ---------- */
+#side{width:64px;--cut:12px}
+.stripcap{padding:6px 0 5px;background:var(--y);color:var(--on-y);font:700 12px/1 var(--disp);letter-spacing:.2em;text-align:center;padding-right:8px}
+.sqs{display:flex;flex-direction:column;align-items:center;gap:13px;padding:13px 0 17px}
+.sqs hr{width:40px;border:0;border-top:1px solid var(--steel);margin:0}
+.sqw{position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer}
+.sq{position:relative;width:42px;height:42px;display:grid;place-items:center;background:var(--pc);color:#000;font:900 14px/1 var(--orb);letter-spacing:.02em;border:0;padding:0;
+  clip-path:polygon(0 0,calc(100% - 7px) 0,100% 7px,100% 100%,7px 100%,0 calc(100% - 7px))}
+.sqw .ring{position:absolute;left:-5px;top:-5px;width:52px;height:52px;border:2px solid var(--y);opacity:0;pointer-events:none}
+.sqw.on .ring{opacity:1}
+.sqw.on::after{content:'';position:absolute;right:-17px;top:15px;border:6px solid transparent;border-left-color:var(--y)}
+.sqw:hover .sq{filter:brightness(1.15)}
+/* inner lines: side by side below the coloured block; körperlich left, psychisch right.
+   Each line holds 5 <b> marks laid out with space-between, so patterns start and end with a mark. */
+.sq.inlines{background:none;clip-path:none;isolation:isolate;font-size:19px;padding-bottom:7px}
+.sq.inlines::before{content:'';position:absolute;left:0;right:0;top:0;bottom:7px;z-index:-1;background:var(--pc);
+  clip-path:polygon(0 0,calc(100% - 7px) 0,100% 7px,100% 100%,0 100%)}
+.ib{position:absolute;left:0;right:0;bottom:0;height:4px;display:flex;gap:2px}
+.ib i{flex:1;height:4px;display:flex;justify-content:space-between;align-items:center;background:var(--sc)}
+.ib i b{display:none;height:4px;background:var(--sc)}
+.ib i.s-warn,.ib i.s-crit{background:none}
+.ib i.s-crit{animation:blink 1s steps(2) infinite}
+.ib i.s-crit b{display:block;width:calc(100% / 9)}
+.ib i.s-warn b{display:block;width:calc(100% / 5)} .ib i.s-warn b:nth-child(n+4){display:none}
+.ib i.s-down{background:none}
+.ib i.s-down b{display:block;width:6px;clip-path:polygon(0 0,100% 0,50% 100%)} .ib i.s-down b:nth-child(n+4){display:none}
+.s-ok{--sc:#5fcfdc} .s-warn{--sc:#f5e10a} .s-crit{--sc:#ff2848} .s-down{--sc:#8a96a0}
+.create{width:52px;margin:0 6px;background:none;border:1px dashed rgba(var(--y-rgb),.7);color:var(--y);font:10px/1.25 var(--mono);letter-spacing:.08em;padding:6px 2px}
+.create:hover{background:rgba(var(--y-rgb),.12)}
+
+/* ---------- sheet ---------- */
+#sheet{width:940px;max-width:calc(var(--screen-w) - 190px);margin-left:22px;--cut:30px}
+#sheet .inner{max-height:calc(var(--screen-h) - 150px);overflow:auto;scrollbar-width:none}
+#sheet .inner::-webkit-scrollbar{display:none}
+.shh{position:relative;display:flex;align-items:flex-end;gap:20px;padding:18px 26px 14px 48px;border-bottom:1px solid var(--line)}
+.shh > *{position:relative;z-index:1}
+.shh h1{margin:0;font:700 46px/.85 var(--disp);color:var(--pc);text-transform:uppercase;letter-spacing:.06em}
+/* header: tab + hatch. Runner block on the left, yellow rule below, hatch on the right starting after the name */
+.shh{background:repeating-linear-gradient(-45deg,color-mix(in srgb,var(--pc) 45%,transparent) 0 3px,transparent 3px 10px) right/calc(100% - var(--hx,58%)) 100% no-repeat}
+.shh::before{content:'';position:absolute;left:0;top:0;bottom:0;width:20px;background:var(--pc)}
+.shh::after{content:'';position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--y)}
+/* flush height: the bar shrinks to the vitals panel, clear of the yellow rule and the cut corner */
+.shh:has(> .vit){padding:0 32px 2px 48px;align-items:center}
+.shh .vit{background:var(--panel);margin-left:auto;flex:none;align-self:stretch}
+.ny{margin-left:auto;text-align:right;flex:none}
+.ny label{display:block;font:10px var(--mono);color:var(--dim);letter-spacing:.16em}
+.ny .nv{font:600 21px/1.2 var(--disp);color:#fff;letter-spacing:.03em}
+.ny input{width:110px;font:600 19px var(--disp);background:#0d1016;color:#fff;border:1px solid var(--y);padding:1px 6px;text-align:right}
+.ny .q{display:flex;gap:3px;justify-content:flex-end;margin-top:4px}
+.ny .q button{background:none;border:1px solid rgba(var(--y-rgb),.35);color:rgba(var(--y-rgb),.85);font:10px var(--mono);padding:2px 5px;letter-spacing:.04em}
+.ny .q button:hover{background:var(--y);color:var(--on-y)}
+.sb{padding:14px 26px 30px}
+.ny-foot .ny{margin:10px 0 0;text-align:left;border-top:1px solid var(--line);padding-top:7px}
+.ny-foot .ny .q{justify-content:flex-start}
+.ny-foot .ny input{text-align:left}
+.cols{display:grid;grid-template-columns:304px 1fr;gap:0 28px}
+.secs{display:grid;gap:0 26px;align-items:start}
+
+/* GM affordances */
+body.player .gmonly{display:none!important}
+.edit{border-bottom:1px dashed rgba(var(--y-rgb),.6);cursor:text;outline:none}
+.edit:hover{background:rgba(var(--y-rgb),.1)}
+.edit:focus{background:rgba(var(--y-rgb),.15);border-bottom-style:solid}
+
+/* name block (list) */
+.nb-list{display:grid;grid-template-columns:1fr 1fr;gap:0 16px;margin-bottom:14px}
+.nb-list div{padding:4px 0 5px;border-bottom:1px dotted rgba(255,255,255,.12)}
+.nb-list label{display:block;font:10px var(--mono);color:var(--dim);letter-spacing:.14em;text-transform:uppercase}
+.nb-list b{font:600 16px/1.2 var(--disp);color:#fff}
+
+/* ---------- vitals (compact monitors in the header) ---------- */
+.vit{display:grid;grid-template-columns:repeat(5,auto)}
+.vrow{--sc:#5fcfdc;grid-column:1/-1;display:grid;grid-template-columns:subgrid;align-items:center;padding:5px 9px}
+.vrow > * + *{margin-left:9px}
+.vrow + .vrow{border-top:1px solid var(--line)}
+.vrow.s-crit{background:repeating-linear-gradient(-45deg,rgba(255,40,72,.09) 0 6px,rgba(255,40,72,.02) 6px 12px)}
+.vrow .vl{font:10px var(--mono);color:var(--dim);letter-spacing:.12em}
+.vrow .mon{position:relative;display:block;width:110px;height:26px}
+.vrow canvas{display:block;width:110px;height:26px;background:#05070b;
+  background-image:linear-gradient(rgba(95,207,220,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(95,207,220,.07) 1px,transparent 1px);background-size:100% 6.5px,11px 100%}
+.vrow .ro{position:absolute;right:1px;bottom:1px;font:9px/1 var(--mono);color:var(--sc);letter-spacing:.04em;white-space:nowrap;background:rgba(5,7,11,.82);padding:1px 3px;pointer-events:none}
+.vrow .st{width:34px;text-align:center;font:9px/14px var(--mono);letter-spacing:.08em;color:var(--sc);border:1px solid var(--sc)}
+.vrow.s-crit .st{animation:blink 1s steps(2) infinite}
+.vrow.s-down .st{color:#000;background:var(--sc)}
+.vrow .ct{max-width:150px;font:600 15px/1.1 var(--disp);color:#fff}
+.seg{display:flex;gap:2px}
+.seg button{background:none;border:1px solid color-mix(in srgb,var(--sc) 45%,transparent);color:var(--sc);font:9px var(--mono);letter-spacing:.06em;padding:2px 4px}
+.seg button.on,.seg button:hover{background:var(--sc);color:#000}
+
+/* ---------- markdown look (vector windows) ---------- */
+.md{font:500 16px/1.35 var(--disp);color:var(--body)}
+.md h1,.md h2,.md h3{display:flex;align-items:center;gap:10px;margin:16px 0 7px;font-family:var(--mono);font-weight:400;color:var(--y);text-transform:uppercase}
+.md h1{font-size:17px;letter-spacing:.16em}
+.md h2{font-size:14px;letter-spacing:.18em}
+.md h3{font-size:12px;letter-spacing:.16em;color:rgba(var(--y-rgb),.85);margin-top:11px}
+.md h1::after,.md h2::after,.md h3::after{content:'';flex:1;height:1px;background:rgba(var(--y-rgb),.3)}
+.md h4,.md h5,.md h6{margin:10px 0 4px;font:12px var(--mono);color:var(--soft);letter-spacing:.12em;text-transform:uppercase;font-weight:400}
+.md > :first-child{margin-top:0}
+.md p{margin:0 0 6px}
+.md strong{color:#fff;font-weight:700}
+.md del{color:var(--dim)}
+.md ul,.md ol{margin:2px 0 6px;padding:0;list-style:none}
+.md li{position:relative;padding-left:17px;margin:3px 0}
+.md ul > li::before{content:'';position:absolute;left:2px;top:.52em;width:6px;height:6px;background:var(--y);transform:rotate(45deg)}
+.md ol{counter-reset:n}
+.md ol > li{counter-increment:n;padding-left:22px}
+.md ol > li::before{content:counter(n) '.';position:absolute;left:0;font:13px/1.6 var(--mono);color:var(--y)}
+.md li.task{padding-left:22px}
+.md li.task::before{display:none}
+.md li.task .box{position:absolute;left:0;top:.28em;width:12px;height:12px;border:1.5px solid var(--y)}
+.md li.task.done{color:var(--dim)}
+.md li.task.done .box{background:var(--y)}
+.md blockquote{margin:4px 0 8px;padding:2px 0 2px 12px;border-left:2px solid var(--steel);color:var(--soft);font-style:italic}
+.md .co{margin:6px 0 10px;padding:7px 12px 6px;border:1px solid rgba(var(--y-rgb),.4);background:rgba(var(--y-rgb),.045);clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,0 100%)}
+.md .co-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px}
+.md .co-l{font:10px var(--mono);color:var(--y);letter-spacing:.16em;text-transform:uppercase}
+.md .co-t{font:700 17px/1.2 var(--disp);color:#fff}
+.md .co-reward .co-t{font:900 20px/1.2 var(--orb);color:var(--y)}
+.md .co-b{margin-top:3px;font-size:15px}
+.md .co-b > :last-child{margin-bottom:0}
+.sbox{position:relative;margin-bottom:12px}
+.sbox .ed{position:absolute;right:0;top:-1px;background:var(--panel);border:1px dashed rgba(var(--y-rgb),.5);color:var(--y);font:10px var(--mono);letter-spacing:.12em;padding:2px 6px;opacity:.55}
+.sbox:hover .ed{opacity:1}
+.sbox textarea,.jsonbox textarea{width:100%;min-height:170px;background:#0b0e14;color:var(--txt);border:1px solid var(--y);font:13px/1.4 var(--mono);padding:8px;resize:vertical}
+.jsonbox textarea{min-height:min(520px,calc(var(--screen-h) - 330px))}
+.jsonbox .err{margin-top:4px;font:12px var(--mono);color:var(--r)}
+.ea{display:flex;gap:6px;margin-top:4px}
+.ea button,.add{background:none;border:1px dashed rgba(var(--y-rgb),.6);color:var(--y);font:11px var(--mono);letter-spacing:.1em;padding:3px 9px}
+.ea button:hover,.add:hover{background:rgba(var(--y-rgb),.12)}
+.ea [data-del]{margin-left:auto;border-color:rgba(255,40,72,.6);color:var(--r)}
+.tools{display:flex;gap:6px}
+
+/* ---------- skills + dice (accent yellow only) ---------- */
+.att{display:flex;align-items:center;gap:10px;padding:7px 0 3px}
+.att b{font:700 17px/1 var(--disp);letter-spacing:.12em;color:#fff}
+.sub{display:flex;align-items:center;gap:8px;padding:2px 0 2px 22px;font:500 16px/1.25 var(--disp);color:var(--body)}
+.sub .nm{display:flex;flex-wrap:wrap;align-items:center;gap:2px 8px;min-width:0}
+.specrow{display:flex;align-items:center;gap:6px;padding:0 0 2px 40px;font:500 15px/1.25 var(--disp);color:var(--soft)}
+.specrow .elb{flex:none;width:9px;height:9px;margin-top:-6px;border-left:1px solid var(--dim);border-bottom:1px solid var(--dim)}
+.die{position:relative;flex:none;display:inline-flex;flex-direction:column;align-items:stretch;gap:2px}
+.die em{position:relative;font-style:normal;display:block}
+.die em b{display:grid;place-items:center;height:100%;font:700 12px/1 var(--orb);letter-spacing:.02em;color:var(--y)}
+.die.a em{width:42px;height:24px;background:var(--y)}
+.die.a em b{color:#000;padding-bottom:4px}
+.die.s em{width:34px;height:21px;border:1.5px solid var(--y)}
+.die.s em b{font-size:10px;padding-bottom:4px}
+.die.p em{padding:1px 4px 5px;border:1px dashed var(--y)}
+.die.p em b{font-size:9px;height:auto;line-height:1.2}
+/* pips: 5 segments inside the badge along its bottom, D4 = 1 … D12 = 5, in the badge's opposite colour */
+.pp{position:absolute;left:3px;right:3px;bottom:2px;display:flex;gap:1px;pointer-events:none}
+.pp i{flex:1;height:2px;background:var(--y)}
+.pp i.off{background:rgba(var(--y-rgb),.2)}
+.die.a .pp i{background:#000}
+.die.a .pp i.off{background:rgba(0,0,0,.2)}
+/* attribute groups: header bar */
+.ag{position:relative}
+.att{background:rgba(var(--y-rgb),.1);padding:3px 8px 3px 3px;margin-top:9px}
+.ag:first-child .att{margin-top:2px}
+/* tree connectors: attribute -> each skill, skill -> specialisation */
+.sub,.specrow{position:relative}
+.sub::before{content:'';position:absolute;left:12px;top:0;height:50%;width:8px;border-left:1px solid var(--dim);border-bottom:1px solid var(--dim)}
+.cont::after{content:'';position:absolute;left:12px;top:0;bottom:0;border-left:1px solid var(--dim)}
+/* click to roll */
+[data-roll]{cursor:pointer}
+[data-roll] .rl{margin-left:auto;font:9px var(--mono);letter-spacing:.14em;color:var(--y);opacity:0;padding-right:4px}
+[data-roll]:hover .rl{opacity:.9}
+.sub[data-roll]:hover,.specrow[data-roll]:hover{background:rgba(var(--y-rgb),.07)}
+.att[data-roll]:hover{background:rgba(var(--y-rgb),.2)}
+
+/* standalone preview (no OBR): neutral background, positioned like the popover */
+html.standalone,html.standalone body{background:#1e2130;height:100%}
+html.standalone #app{position:fixed;left:8px;top:50%;transform:translateY(-50%)}

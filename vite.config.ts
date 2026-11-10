@@ -16,6 +16,8 @@ export default defineConfig({
         background: resolve(import.meta.dirname, "background.html"),
         editor: resolve(import.meta.dirname, "editor.html"),
         settings: resolve(import.meta.dirname, "settings.html"),
+        sidebar: resolve(import.meta.dirname, "sidebar.html"),
+        dice: resolve(import.meta.dirname, "dice.html"),
       },
     },
   },
