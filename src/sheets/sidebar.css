@@ -82,6 +82,7 @@ html.part-sheet #sheet{margin-left:0}
 .ny .q{display:flex;gap:3px;justify-content:flex-end;margin-top:4px}
 .ny .q button{background:none;border:1px solid rgba(var(--y-rgb),.35);color:rgba(var(--y-rgb),.85);font:10px var(--mono);padding:2px 5px;letter-spacing:.04em}
 .ny .q button:hover{background:var(--y);color:var(--on-y)}
+.ny .q button.pl{margin-left:6px} /* gap between the minus and plus groups */
 .sb{padding:14px 26px 30px}
 .ny-foot .ny{margin:10px 0 0;text-align:left;border-top:1px solid var(--line);padding-top:7px}
 .ny-foot .ny .q{justify-content:flex-start}
@@ -91,6 +92,13 @@ html.part-sheet #sheet{margin-left:0}
 .body .col{min-width:0}
 .body .col > .md:not(:first-child),.body .col > .nb-list + .md{margin-top:14px}
 .body .col > .ny-foot:first-child .ny{margin-top:0;border-top:0;padding-top:0}
+/* nuyen = credstick (decided): solid ¥ tab with the window's bottom-left cut + plain rectangular outlined value */
+.ny-foot .ny{display:flex;flex-wrap:wrap;align-items:stretch;margin-top:14px;border:0;padding:0}
+.body .col > .ny-foot:first-child .ny{margin-top:0}
+.ny .ny-sym{display:grid;place-items:center;width:34px;background:var(--y);color:#000;font:900 17px var(--orb);clip-path:polygon(0 0,100% 0,100% 100%,9px 100%,0 calc(100% - 9px))}
+.ny .ny-body{display:block;flex:1;padding:5px 10px 6px;background:rgba(var(--y-rgb),.06);border:1px solid rgba(var(--y-rgb),.55);border-left:0}
+.ny .nv{display:block;font:700 21px/1.1 var(--disp);color:#fff}
+.ny-foot .ny .q{flex-basis:100%;margin-top:5px}
 
 /* GM affordances */
 body.player .gmonly{display:none!important}

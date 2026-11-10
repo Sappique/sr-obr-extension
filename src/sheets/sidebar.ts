@@ -79,7 +79,6 @@ let jsonOpen = "";
 let docOpen = "";
 
 const app = document.getElementById("app")!;
-const fmtY = (n: number) => n.toLocaleString("de-DE") + " ¥";
 const MARKS = "<b></b>".repeat(5);
 const winHTML = (body: string, plate = true) =>
   `${plate ? '<div class="plate"></div>' : ""}<div class="frame"><div class="inner">${body}</div></div>`;
@@ -124,8 +123,11 @@ function vitals(s: Sheet) {
   }).join("")}</div>`;
 }
 function nuyenBlock(s: Sheet) {
-  return `<div class="ny"><label>${s.shared ? "NUYEN · CREW" : "NUYEN"}</label><span class="nv ${gm ? "edit" : ""}" data-ny>${fmtY(s.nuyen)}</span>
-    <div class="q gmonly">${[-500, -100, 100, 500].map((d) => `<button data-nyd="${d}">${d > 0 ? "+" : "−"}${Math.abs(d)}</button>`).join("")}</div></div>`;
+  // Credstick: solid ¥ tab + plain outlined value; GM steps grouped minus | plus.
+  const steps = [-1000, -500, -100, 100, 500, 1000];
+  const label = (d: number) => `${d > 0 ? "+" : "−"}${Math.abs(d) >= 1000 ? Math.abs(d) / 1000 + "k" : Math.abs(d)}`;
+  return `<div class="ny"><span class="ny-sym">¥</span><div class="ny-body"><label>${s.shared ? "NUYEN · CREW" : "NUYEN"}</label><span class="nv ${gm ? "edit" : ""}" data-ny>${s.nuyen.toLocaleString("de-DE")}</span></div>
+    <div class="q gmonly">${steps.map((d) => `<button data-nyd="${d}"${d === 100 ? ' class="pl"' : ""}>${label(d)}</button>`).join("")}</div></div>`;
 }
 /** The sheet body: its Markdown document laid out in columns, with the structured parts at their placeholders. */
 function bodyBlock(s: Sheet) {
