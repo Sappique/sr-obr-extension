@@ -30,6 +30,30 @@ Callouts (add types in `src/core/callouts.ts`):
 > Normal Markdown body.
 ```
 
+## Crew sheets (`src/sheets`)
+
+A screen-fixed popover on the left edge (design 16): initials squares with two status lines,
+clicking one opens that runner's sheet beside the strip (click again to close).
+
+- **Data:** one hidden, locked scene item per sheet, the sheet JSON in its metadata
+  (`sappique.sr-obr/sheet`). Edits go through `updateItems`, so they sync and undo. Players
+  receive hidden items, so the sidebar works for them too.
+- **Create:** in a scene without sheets the GM gets "Create crew" (seeded from `seed-data.json`).
+- **GM edits:** condition text and OK/WRN/CRT/DWN per track, nuyen (±100/±500 or click to type),
+  Markdown sections (edit/add/delete), and the structure (name block, skills, colour) as raw JSON.
+  Players are read-only.
+- **Monitors** animate locally on every client, seeded per runner and track.
+- **Standalone preview** with mock data: `http://localhost:5175/sidebar.html`.
+
+## Dice (`src/dice`)
+
+Click an attribute, skill or specialisation row on a sheet to roll attribute (+ skill
+(+ specialisation)). Result = highest die + 1 for every other die on its max face; among tied
+highest dice the base is one not on its max face (`roll.ts`, tests in `roll.test.ts`).
+Anyone can roll any sheet; the roller draws the values and broadcasts them, so every client
+plays the same popup at the bottom right (stacking, fades 5 s after the result).
+Preview: `http://localhost:5175/dice.html?demo`.
+
 ## Develop
 
 ```sh

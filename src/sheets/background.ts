@@ -1,15 +1,16 @@
 /**
  * Opens the screen-fixed popovers on every client: the crew sidebar (left edge,
- * vertically centred) and the dice roll popups (bottom left, above OBR's menu
- * button). Both start at 0×0 and size themselves to their content.
+ * vertically centred) and the dice roll popups (bottom right, left of OBR's right
+ * toolbar column and grid-scale button). Both size themselves to their content.
  */
 import OBR from "@owlbear-rodeo/sdk";
 import { DICE_POPOVER, SIDEBAR_POPOVER } from "./model";
 
-/** Space kept free below the dice popups for OBR's bottom-left menu button. */
-const DICE_BOTTOM_GAP = 64;
+/** Space kept free right of the dice popups: OBR's right toolbar and its "5ft" grid-scale button. */
+const DICE_RIGHT_GAP = 80;
+const DICE_BOTTOM_GAP = 16;
 
-async function openDice(height: number) {
+async function openDice(width: number, height: number) {
   await OBR.popover.open({
     id: DICE_POPOVER,
     url: "/dice.html",
@@ -18,9 +19,9 @@ async function openDice(height: number) {
     width: 1,
     height: 1,
     anchorReference: "POSITION",
-    anchorPosition: { left: 8, top: height - DICE_BOTTOM_GAP },
-    anchorOrigin: { horizontal: "LEFT", vertical: "BOTTOM" },
-    transformOrigin: { horizontal: "LEFT", vertical: "BOTTOM" },
+    anchorPosition: { left: width - DICE_RIGHT_GAP, top: height - DICE_BOTTOM_GAP },
+    anchorOrigin: { horizontal: "RIGHT", vertical: "BOTTOM" },
+    transformOrigin: { horizontal: "RIGHT", vertical: "BOTTOM" },
     disableClickAway: true,
     hidePaper: true,
     marginThreshold: 0,
@@ -40,16 +41,16 @@ OBR.onReady(async () => {
     hidePaper: true,
     marginThreshold: 8,
   });
-  // The dice popover is anchored to a screen position; follow window height changes.
+  // The dice popover is anchored to a screen position; follow window size changes.
   // Opening a second popover in the same tick leaves it blank, so give the sidebar a moment.
   await new Promise((r) => setTimeout(r, 1500));
-  let height = await OBR.viewport.getHeight();
-  void openDice(height);
+  let size = `${await OBR.viewport.getWidth()}x${await OBR.viewport.getHeight()}`;
+  void openDice(...(size.split("x").map(Number) as [number, number]));
   setInterval(async () => {
-    const h = await OBR.viewport.getHeight();
-    if (h !== height) {
-      height = h;
-      void openDice(h);
+    const next = `${await OBR.viewport.getWidth()}x${await OBR.viewport.getHeight()}`;
+    if (next !== size) {
+      size = next;
+      void openDice(...(next.split("x").map(Number) as [number, number]));
     }
   }, 3000);
 });

@@ -1,4 +1,4 @@
-/* Dice roll popups (OBR popover, bottom left). Window style of design 14. */
+/* Dice roll popups (OBR popover, bottom right). Window style of design 14. */
 :root{
   --y:#f5e10a; --y-rgb:245,225,10; --panel:#07080c; --line:rgba(95,207,220,.18);
   --txt:#e3e9ec; --soft:#b3c0c6; --dim:#74828a;
@@ -6,7 +6,7 @@
 }
 *{box-sizing:border-box}
 html,body{margin:0;background:transparent;color:var(--txt);font-family:var(--disp);-webkit-font-smoothing:antialiased;overflow:hidden}
-#stack{display:inline-flex;flex-direction:column;align-items:flex-start;gap:14px;padding:4px 0 14px 16px}
+#stack{display:inline-flex;flex-direction:column;align-items:flex-end;gap:14px;padding:4px 2px 14px 16px}
 #stack:empty{padding:0}
 
 .w{position:relative;flex:none;--cut:16px;--clip:polygon(0 0,calc(100% - var(--cut)) 0,100% var(--cut),100% 100%,var(--cut) 100%,0 calc(100% - var(--cut)))}
@@ -14,13 +14,13 @@ html,body{margin:0;background:transparent;color:var(--txt);font-family:var(--dis
 .w .frame{position:relative;padding:3px;background:var(--y);clip-path:var(--clip)}
 .w .inner{position:relative;background:var(--panel);clip-path:var(--clip)}
 
-.roll{min-width:250px;max-width:520px;transition:opacity .5s ease}
+.roll{width:max-content;min-width:250px;max-width:520px;transition:opacity .5s ease}
 .roll.gone{opacity:0}
 /* title bar: runner tab on the left, like the sheet header */
-.rh{position:relative;display:flex;align-items:center;min-height:30px;padding:5px 26px 5px 22px;border-bottom:1px solid var(--line);font:700 15px/1.1 var(--disp);letter-spacing:.06em;color:#fff;text-transform:uppercase}
+.rh{position:relative;display:block;min-height:30px;padding:5px 26px 5px 22px;border-bottom:1px solid var(--line);font:700 15px/1.1 var(--disp);letter-spacing:.06em;color:#fff;text-transform:uppercase}
 .rh::before{content:'';position:absolute;left:0;top:0;bottom:0;width:10px;background:var(--pc)}
 .rh::after{content:'';position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--y)}
-.rh b{color:var(--pc);font-weight:700;margin-right:6px}
+.rh b{color:var(--pc);font-weight:700}
 .dice{display:flex;align-items:flex-end;gap:12px;padding:12px 18px 12px}
 .dv{position:relative;width:62px;display:flex;flex-direction:column;align-items:center;gap:3px}
 .dv .face{position:relative;width:62px;height:62px;display:grid;place-items:center}
@@ -44,4 +44,4 @@ html,body{margin:0;background:transparent;color:var(--txt);font-family:var(--dis
 
 /* standalone preview (no OBR) */
 html.standalone,html.standalone body{background:#1e2130;height:100%}
-html.standalone #stack{position:fixed;left:8px;bottom:64px}
+html.standalone #stack{position:fixed;right:80px;bottom:16px}

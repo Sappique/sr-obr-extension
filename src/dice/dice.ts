@@ -1,5 +1,5 @@
 /**
- * Dice roll popups, shown for everyone in a popover at the bottom left.
+ * Dice roll popups, shown for everyone in a popover at the bottom right.
  * Every client receives the same RollMessage (final values + seed) and plays:
  *   0–1 s   numbers flicker, then stop on the final values
  *   +0.5 s  each other die on its max face turns into "+1", flies into the base die,
@@ -48,7 +48,7 @@ function rng(seed: number) {
 
 function titleHTML(title: string) {
   const [who, ...rest] = title.split(" · ");
-  return rest.length ? `<b>${esc(who)}</b>· ${esc(rest.join(" · "))}` : esc(title);
+  return rest.length ? `<b>${esc(who)}</b> · ${esc(rest.join(" · "))}` : esc(title);
 }
 
 const seen = new Set<string>();
