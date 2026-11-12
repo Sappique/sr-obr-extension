@@ -18,7 +18,17 @@ export const SHEET_POPOVER = `${ID}/sheet`;
 /** Screen position of the sheet popover: left edge = sheet shadow plate, top above any sheet. */
 export const SHEET_POPOVER_POS = { left: 98, top: 60 };
 export const DICE_POPOVER = `${ID}/dice`;
+/** Space kept free right of the dice popups: OBR's right toolbar and its "5ft" grid-scale button. */
+export const DICE_RIGHT_GAP = 80;
+export const DICE_BOTTOM_GAP = 16;
+/** Top-left screen position of a w×h dice popover whose bottom-right corner sits at the fixed spot. */
+export const diceRect = (screenW: number, screenH: number, w: number, h: number) => ({
+  left: screenW - DICE_RIGHT_GAP - w,
+  top: screenH - DICE_BOTTOM_GAP - h,
+});
 export const ROLL_CHANNEL = `${ID}/roll`;
+/** Local message from dice.html once it runs: tells background.ts the dice popover did open. */
+export const DICE_READY_CHANNEL = `${ID}/dice-ready`;
 
 export type State = "ok" | "warn" | "crit" | "down";
 export type Track = "k" | "p";
