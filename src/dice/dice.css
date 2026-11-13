@@ -1,4 +1,4 @@
-/* Dice roll popups (OBR popover, bottom right). Design: designs/17-dice-roller.html.
+/* Dice roll popups (one OBR popover per roll, bottom right). Design: designs/17-dice-roller.html.
    Slab window, initials header, names above the dice, result on the right in a yellow plaque,
    tumble + numbers, newest roll on top, collapse to one line, then slide out. */
 :root{
@@ -9,14 +9,14 @@
 }
 *{box-sizing:border-box}
 html,body{margin:0;background:transparent;color:var(--txt);font-family:var(--disp);-webkit-font-smoothing:antialiased;overflow:hidden}
-/* Anchored bottom-right like the popover itself: while OBR applies a new popover size (a frame
-   or two later), the visible popups keep their screen position. New rolls go on top. */
-/* OBR clips popovers to a 16 px corner radius: 5 px of transparent padding keeps the square popup
-   corners clear of it (16 × (1 − 1/√2) ≈ 4.7 px). */
+/* In OBR every roll has its own window (html.win), sized by the manager to popup + 5 px padding
+   (src/dice/bus.ts PAD: keeps the square corners clear of OBR's 16 px rounded popover clip).
+   Bottom-right anchored: a collapsed line sits at the bottom of its (unchanged) window. */
+html.win .roll{position:fixed;right:5px;bottom:5px;width:max-content}
+/* laid out (measured) but invisible until the window has its size and place */
+.roll.measure{visibility:hidden}
+/* standalone preview: one stack, newest on top */
 #stack{position:fixed;right:0;bottom:0;display:flex;flex-direction:column;align-items:flex-end;gap:14px;padding:5px}
-#stack:empty{padding:0}
-/* a new popup is measured out of flow before the popover has grown for it */
-#stack > .roll.measure{position:absolute;right:5px;bottom:5px;visibility:hidden}
 
 /* slab window: flat dark panel, thin steel frame, runner edge on the left */
 .roll{position:relative;flex:none;max-width:560px;padding:1px;background:var(--steel)}
@@ -60,8 +60,8 @@ html,body{margin:0;background:transparent;color:var(--txt);font-family:var(--dis
 /* one-line collapsed state */
 .one{display:none;align-items:center;gap:8px;padding:4px 12px 4px 4px;font:600 14px/1.1 var(--disp);color:var(--soft);white-space:nowrap}
 .one .ini{width:18px;height:18px;font-size:8px;line-height:1}
-.one .what{font:11px var(--mono);color:var(--dim);letter-spacing:.06em}
-.one .tot1{margin-left:auto;font:900 18px/1 var(--orb);color:var(--y);padding-left:10px}
+.one .what{min-width:0;overflow:hidden;text-overflow:ellipsis;font:11px var(--mono);color:var(--dim);letter-spacing:.06em}
+.one .tot1{flex:none;margin-left:auto;font:900 18px/1 var(--orb);color:var(--y);padding-left:10px}
 .roll.collapsed .rh,.roll.collapsed .rb{display:none}
 .roll.collapsed .one{display:flex}
 

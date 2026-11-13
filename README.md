@@ -51,8 +51,13 @@ Click an attribute, skill or specialisation row on a sheet to roll attribute (+ 
 (+ specialisation)). Result = highest die + 1 for every other die on its max face; among tied
 highest dice the base is one not on its max face (`roll.ts`, tests in `roll.test.ts`).
 Anyone can roll any sheet; the roller draws the values and broadcasts them, so every client
-plays the same popup at the bottom right (stacking, fades 5 s after the result).
-Preview: `http://localhost:5175/dice.html?demo`.
+plays the same popup at the bottom right: newest on top, collapses to one line 8 s after
+arrival, the line slides out 10 s later.
+Every visible roll has its own popover window (`dice.html?slot=N`), managed from the
+background page (`manager.ts`; messages in `bus.ts`, popup rendering in `view.ts`). OBR applies
+a popover's new size a frame before its new position, so a window is only resized while it is
+invisible and otherwise only moved; see the comment at the top of `manager.ts`.
+Preview (one page, no OBR): `http://localhost:5175/dice.html?demo`.
 
 ## Develop
 
