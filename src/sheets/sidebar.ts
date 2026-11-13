@@ -14,10 +14,8 @@ import OBR from "@owlbear-rodeo/sdk";
 import { makeRoll } from "../dice/roll";
 import { Backend, Entry, mockBackend, obrBackend } from "./backend";
 import { esc, markdownToHtml } from "./markdownHtml";
-import { docFromSections, parseDoc } from "./doc";
+import { parseDoc } from "./doc";
 import {
-  docOf,
-  dieSize,
   SHEET_POPOVER,
   SHEET_POPOVER_POS,
   SIDEBAR_POPOVER,
@@ -85,10 +83,10 @@ const winHTML = (body: string, plate = true) =>
 const entryOf = (id: string) => entries?.find((e) => e.sheet.id === id);
 
 // ---------- pieces ----------
-function die(d: string, kind: "a" | "s" | "p") {
-  const filled = (dieSize(d) - 2) / 2;
+function die(d: number, kind: "a" | "s" | "p") {
+  const filled = (d - 2) / 2;
   const pips = Array.from({ length: 5 }, (_, i) => `<i class="${i < filled ? "" : "off"}"></i>`).join("");
-  return `<span class="die ${kind}"><em><b>${esc(d)}</b><span class="pp">${pips}</span></em></span>`;
+  return `<span class="die ${kind}"><em><b>D${d}</b><span class="pp">${pips}</span></em></span>`;
 }
 const RL = '<span class="rl">ROLL</span>';
 function skillsBlock(s: Sheet) {
@@ -98,7 +96,7 @@ function skillsBlock(s: Sheet) {
     a.skills.forEach((sk, si) => {
       const cont = si < a.skills.length - 1 ? " cont" : ""; // more skills follow: the attribute trunk passes this row
       g += `<div class="sub${cont}" data-roll="${ai}.${si}" title="Roll ${esc(a.name)} + ${esc(sk.name)}">${die(sk.die, "s")}<span class="nm">${esc(sk.name)}</span>${RL}</div>`;
-      g += sk.specs
+      g += sk.specializations
         .map(
           (p, pi) =>
             `<div class="specrow${cont}" data-roll="${ai}.${si}.${pi}" title="Roll ${esc(a.name)} + ${esc(sk.name)} + ${esc(p.name)}"><i class="elb"></i>${die(p.die, "p")}${esc(p.name)}${RL}</div>`,
@@ -131,7 +129,7 @@ function nuyenBlock(s: Sheet) {
 }
 /** The sheet body: its Markdown document laid out in columns, with the structured parts at their placeholders. */
 function bodyBlock(s: Sheet) {
-  const cols = parseDoc(docOf(s), { name: !s.shared && s.meta.length > 0, skills: s.attributes.length > 0, nuyen: true });
+  const cols = parseDoc(s.doc, { name: !s.shared && s.meta.length > 0, skills: s.attributes.length > 0, nuyen: true });
   const html = cols
     .map(
       (col) =>
@@ -156,7 +154,7 @@ function bodyBlock(s: Sheet) {
 function docEditor(s: Sheet) {
   return `<div class="docbox"><div class="md"><h2>Text &amp; layout (Markdown)</h2></div>
     <p class="hint"><code>&lt;!-- column --&gt;</code> starts a new column · <code>&lt;!-- name --&gt;</code> <code>&lt;!-- skills --&gt;</code> <code>&lt;!-- nuyen --&gt;</code> place the name block, skills and nuyen (left out: name and skills open the first column, nuyen closes the last)</p>
-    <textarea spellcheck="false" data-doctext>${esc(docOf(s))}</textarea>
+    <textarea spellcheck="false" data-doctext>${esc(s.doc)}</textarea>
     <div class="ea"><button data-docsave>SAVE</button><button data-doccancel>CANCEL</button></div></div>`;
 }
 function structureOf(s: Sheet): Structure {
@@ -169,6 +167,11 @@ function jsonEditor(s: Sheet) {
     <textarea spellcheck="false" data-jsontext>${esc(JSON.stringify(structureOf(s), null, 2))}</textarea>
     <div class="err" data-jsonerr></div>
     <div class="ea"><button data-jsonsave>SAVE</button><button data-jsoncancel>CANCEL</button></div></div>`;
+}
+
+/** GM: the sheet's text item does not hold a valid sheet; edits wait until it is fixed. */
+function errorBanner(s: Sheet, error: string) {
+  return `<div class="sheet-err"><b>SHEET TEXT INVALID</b> Showing the last valid version; changes here are blocked until the text item “Sheet: ${esc(s.handle)}” left of the map is fixed.<code>${esc(error)}</code></div>`;
 }
 
 // ---------- render ----------
@@ -197,7 +200,8 @@ function renderSheet() {
   }
   const head = `<div class="shh"><div class="hn"><h1>${esc(s.handle)}</h1></div>${s.shared ? "" : vitals(s)}</div>`;
   const body = gm && docOpen === s.id ? docEditor(s) : bodyBlock(s);
-  return `<section id="sheet" class="w" style="--pc:${s.color}">${winHTML(`${head}<div class="sb">${body}</div>`)}</section>`;
+  const err = gm && e.error ? errorBanner(s, e.error) : "";
+  return `<section id="sheet" class="w" style="--pc:${s.color}">${winHTML(`${head}<div class="sb">${err}${body}</div>`)}</section>`;
 }
 /** Tab+Hatch: the hatch starts as far right of the name as the name is right of the tab strip. */
 function hatchStart() {
@@ -298,18 +302,10 @@ function sendSize() {
 new ResizeObserver(sendSize).observe(app);
 document.fonts?.ready.then(hatchStart);
 
-/** GM only, once per client: older sheets with separate sections get a body document. */
+/** GM only (strip page): sheets stored by earlier versions become text items. */
 function migrate() {
   if (!gm || PART === "sheet" || !entries) return;
-  for (const e of entries) {
-    if (e.sheet.doc !== undefined) continue;
-    const doc = docFromSections(e.sheet.sections ?? [], !!e.sheet.shared);
-    void backend.update(e.itemId, (x) => {
-      if (x.doc !== undefined) return;
-      x.doc = doc;
-      delete x.sections;
-    });
-  }
+  void backend.migrateLegacy();
 }
 
 // ---------- interaction ----------
@@ -326,16 +322,16 @@ function roll(path: string) {
   const [ai, si, pi] = path.split(".").map(Number);
   const a = s.attributes[ai];
   if (!a) return;
-  const parts = [a.name];
-  const sizes = [dieSize(a.die)];
+  const parts = [a.name.toUpperCase()]; // attributes are shown in capitals everywhere
+  const sizes = [a.die];
   const sk = si !== undefined ? a.skills[si] : undefined;
   if (sk) {
     parts.push(sk.name);
-    sizes.push(dieSize(sk.die));
-    const p = pi !== undefined ? sk.specs[pi] : undefined;
+    sizes.push(sk.die);
+    const p = pi !== undefined ? sk.specializations[pi] : undefined;
     if (p) {
       parts.push(p.name);
-      sizes.push(dieSize(p.die));
+      sizes.push(p.die);
     }
   }
   backend.roll(makeRoll(`${s.handle} · ${parts.join(" + ")}`, s.color, sizes, Math.random, { initials: s.initials, names: parts }));
@@ -430,10 +426,7 @@ app.addEventListener("click", (ev) => {
   if (d.docsave !== undefined) {
     const value = app.querySelector<HTMLTextAreaElement>("[data-doctext]")!.value;
     docOpen = "";
-    update((x) => {
-      x.doc = value.endsWith("\n") ? value : value + "\n";
-      delete x.sections;
-    });
+    update((x) => void (x.doc = value.endsWith("\n") ? value : value + "\n"));
     return render(true);
   }
 });

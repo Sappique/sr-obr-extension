@@ -35,9 +35,13 @@ Callouts (add types in `src/core/callouts.ts`):
 A screen-fixed popover on the left edge (design 16): initials squares with two status lines,
 clicking one opens that runner's sheet beside the strip (click again to close).
 
-- **Data:** one hidden, locked scene item per sheet, the sheet JSON in its metadata
-  (`sappique.sr-obr/sheet`). Edits go through `updateItems`, so they sync and undo. Players
-  receive hidden items, so the sidebar works for them too.
+- **Data:** one text item per sheet whose text is the sheet as JSON ("Sheet: Hawk", hidden from
+  players, left of the map), so the data can be read and edited with OBR's text tool. Schema,
+  validation and formatting in `schema.ts` (v2: dice as integers 4–12, `specializations`,
+  attribute names in normal case, shown in capitals). Invalid text: the sheet keeps its last
+  valid version, the GM sees the error and edits from the sheet wait until it is fixed. Sheets of
+  earlier versions (JSON in item metadata) are converted by the GM client. Edits go through
+  `updateItems`, so they sync and undo.
 - **Create:** in a scene without sheets the GM gets "Create crew" (seeded from `seed-data.json`).
 - **GM edits:** condition text and OK/WRN/CRT/DWN per track, nuyen (±100/±500 or click to type),
   Markdown sections (edit/add/delete), and the structure (name block, skills, colour) as raw JSON.

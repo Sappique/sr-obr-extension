@@ -176,7 +176,7 @@ body.player .gmonly{display:none!important}
 
 /* ---------- skills + dice (accent yellow only) ---------- */
 .att{display:flex;align-items:center;gap:10px;padding:7px 0 3px}
-.att b{font:700 17px/1 var(--disp);letter-spacing:.12em;color:#fff}
+.att b{font:700 17px/1 var(--disp);letter-spacing:.12em;color:#fff;text-transform:uppercase}
 .sub{display:flex;align-items:center;gap:8px;padding:2px 0 2px 22px;font:500 16px/1.25 var(--disp);color:var(--body)}
 .sub .nm{display:flex;flex-wrap:wrap;align-items:center;gap:2px 8px;min-width:0}
 .specrow{display:flex;align-items:center;gap:6px;padding:0 0 2px 40px;font:500 15px/1.25 var(--disp);color:var(--soft)}
@@ -214,3 +214,7 @@ body.player .gmonly{display:none!important}
 /* standalone preview (no OBR): neutral background, positioned like the popover */
 html.standalone,html.standalone body{background:#1e2130;height:100%}
 html.standalone #app{position:fixed;left:8px;top:50%;transform:translateY(-50%)}
+/* GM: the sheet's text item holds invalid JSON */
+.sheet-err{margin:0 0 12px;padding:8px 10px;border-left:4px solid #ff2848;background:rgba(255,40,72,.12);font:12px/1.4 var(--disp);color:var(--txt)}
+.sheet-err b{display:block;font:10px var(--mono);letter-spacing:.14em;color:#ff2848}
+.sheet-err code{display:block;margin-top:4px;font:11px var(--mono);color:var(--soft);white-space:pre-wrap}
