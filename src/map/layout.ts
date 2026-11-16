@@ -90,6 +90,16 @@ export const CORP_COLORS: { id: string; label: string }[] = [
   { id: "#16d3b0", label: "Teal" },
   { id: "#b5f000", label: "Chartreuse" },
   { id: "#6f7cff", label: "Indigo" },
+  // Reds: darker or cooler than the danger red (#ff2848).
+  { id: "#d6203f", label: "Crimson" },
+  { id: "#b3122e", label: "Blood red" },
+  { id: "#c2345a", label: "Raspberry" },
+  { id: "#ff4a2e", label: "Signal red" },
+  // Darker blues than the airport's light blue (#6fb4ff).
+  { id: "#2f6bff", label: "Royal blue" },
+  { id: "#3355d6", label: "Cobalt" },
+  { id: "#4f78b5", label: "Steel blue" },
+  { id: "#2a4aa8", label: "Navy" },
 ];
 export const TEMP = { broken: "gap" as BrokenStyle, corp: "#f5e10a" };
 export const BROKEN_STYLE_KEY = "sappique.sr-obr/tempBrokenStyle";
