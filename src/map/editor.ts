@@ -3,7 +3,7 @@ import "../windows/editor.css";
 import type { Align } from "./fan";
 import { placeColor as placeColorOf } from "./layout";
 import { toEntries } from "../sheets/backend";
-import { CrewInfo, livePin, MAP_SPEC_KEY, mapRole, MapSpec, PinSpec, PlaceKind, readMapSpec } from "./model";
+import { CrewInfo, livePin, livePlace, MAP_SPEC_KEY, mapRole, MapSpec, PinSpec, PLACE_KINDS, PlaceKind, PlaceSpec, readMapSpec } from "./model";
 
 /** Context-menu embed: edits the selected location marker (or its label) or pin. */
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -12,10 +12,13 @@ const kind = $<HTMLSelectElement>("kind");
 const short = $<HTMLInputElement>("short");
 const color = $<HTMLInputElement>("color");
 const placeColor = $<HTMLInputElement>("placeColor");
-const kindColor = $<HTMLButtonElement>("kindColor");
+const colorMode = $<HTMLSelectElement>("colorMode");
 const broken = $<HTMLInputElement>("broken");
 /** Custom colour of the location, or "" for the kind's own. */
 let custom = "";
+/** Crew sheet whose colour the location takes (homes), or "". */
+let colorSheet = "";
+for (const k of PLACE_KINDS) kind.add(new Option(k.label, k.id));
 const alignButtons = [...$("align").querySelectorAll<HTMLButtonElement>("button")];
 const sheet = $<HTMLSelectElement>("sheet");
 const modeButtons = [...$("mode").querySelectorAll<HTMLButtonElement>("button")];
@@ -37,9 +40,17 @@ function showAlign() {
   for (const b of alignButtons) b.setAttribute("aria-pressed", String(b.dataset.align === align));
 }
 
+/** Colour choice: the kind's colour, a custom one, or (for homes) a crew sheet's. */
 function showColor() {
-  placeColor.value = placeColorOf({ type: "place", name: "", kind: kind.value as PlaceKind, align, color: custom });
-  kindColor.disabled = !custom;
+  const home = kind.value === "home";
+  const opts = [new Option("Kind colour", "kind"), new Option("Custom", "custom")];
+  if (home) for (const [id, c] of crew) opts.push(new Option(`From sheet: ${c.handle}`, `sheet:${id}`));
+  if (colorSheet && !crew.has(colorSheet)) opts.push(new Option("From sheet: (deleted)", `sheet:${colorSheet}`));
+  colorMode.replaceChildren(...opts);
+  colorMode.value = colorSheet ? `sheet:${colorSheet}` : custom ? "custom" : "kind";
+  const spec: PlaceSpec = { type: "place", name: "", kind: kind.value as PlaceKind, align, color: custom || undefined, colorSheet: colorSheet || undefined };
+  placeColor.value = placeColorOf(livePlace(spec, crew));
+  placeColor.hidden = colorMode.value !== "custom";
 }
 
 function showMode() {
@@ -67,7 +78,10 @@ function showPinFields(spec: PinSpec) {
 function current(): MapSpec | null {
   if (!loaded) return null;
   if (loaded.type === "place") {
-    return { ...loaded, name: name.value, kind: kind.value as PlaceKind, align, color: custom || undefined, broken: broken.checked || undefined };
+    return {
+      ...loaded, name: name.value, kind: kind.value as PlaceKind, align,
+      color: custom || undefined, colorSheet: colorSheet || undefined, broken: broken.checked || undefined,
+    };
   }
   if (linked && sheet.value) {
     // Keep a copy of the sheet's look, in case the sheet is deleted later.
@@ -100,13 +114,13 @@ async function load(selectedId: string) {
   if (!item || !spec) return;
   loaded = spec;
   name.value = spec.name;
+  const items = await OBR.scene.items.getItems();
+  crew = new Map(
+    toEntries(items)
+      .filter((e) => !e.error && !e.sheet.shared)
+      .map((e) => [e.itemId, { handle: e.sheet.handle, initials: e.sheet.initials, color: e.sheet.color, order: e.sheet.order }]),
+  );
   if (spec.type === "pin") {
-    const items = await OBR.scene.items.getItems();
-    crew = new Map(
-      toEntries(items)
-        .filter((e) => !e.error && !e.sheet.shared)
-        .map((e) => [e.itemId, { handle: e.sheet.handle, initials: e.sheet.initials, color: e.sheet.color, order: e.sheet.order }]),
-    );
     linked = !!spec.sheet;
     fillSheets(spec.sheet);
   }
@@ -119,6 +133,7 @@ async function load(selectedId: string) {
     align = spec.align;
     showAlign();
     custom = spec.color ?? "";
+    colorSheet = spec.colorSheet ?? "";
     broken.checked = !!spec.broken;
     showColor();
   } else {
@@ -136,16 +151,21 @@ OBR.onReady(async () => {
   });
   for (const f of [color, broken]) f.addEventListener("change", save);
   kind.addEventListener("change", () => {
+    // Only homes take a sheet's colour.
+    if (kind.value !== "home") colorSheet = "";
+    showColor();
+    save();
+  });
+  colorMode.addEventListener("change", () => {
+    const v = colorMode.value;
+    colorSheet = v.startsWith("sheet:") ? v.slice(6) : "";
+    // Custom starts from the colour shown so far.
+    custom = v === "custom" ? custom || placeColor.value : "";
     showColor();
     save();
   });
   placeColor.addEventListener("change", () => {
     custom = placeColor.value;
-    showColor();
-    save();
-  });
-  kindColor.addEventListener("click", () => {
-    custom = "";
     showColor();
     save();
   });

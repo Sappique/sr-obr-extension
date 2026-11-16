@@ -4,6 +4,7 @@ import { COLOR } from "../core/style";
 import { baselineOffset, drawText, measureText } from "../core/vectorText";
 import { hashString } from "../windows/layout";
 import { boxLeft, PinSlot } from "./fan";
+import { body, cutBand, ICON_HALF, IconId, ICONS, Poly, slash } from "./icons";
 import type { PinSpec, PlaceKind, PlaceSpec } from "./model";
 
 /**
@@ -18,97 +19,70 @@ export interface Shape {
 }
 
 /** Bump when the drawing changes, so existing markers redraw. */
-const LAYOUT_VERSION = 4;
+const LAYOUT_VERSION = 5;
 
+/** Default colour per kind (a custom or sheet colour overrides it). */
 export const KIND_COLOR: Record<PlaceKind, string> = {
-  place: COLOR.white,
-  contact: COLOR.cyan,
+  person: COLOR.cyan,
+  group: COLOR.cyan,
   corp: COLOR.yellow,
+  place: COLOR.white,
+  club: "#ff5fa2",
   danger: "#ff2848",
-  home: COLOR.yellow,
+  home: "#a46cff",
+  airport: "#6fb4ff",
+  harbor: "#6fb4ff",
+  magic: "#e07bff",
+  other: "#9aa6ad",
+};
+
+const KIND_ICON: Record<PlaceKind, IconId> = {
+  person: "person",
+  group: "group",
+  corp: "corp",
+  place: "poi",
+  club: "bar",
+  danger: "danger",
+  home: "home",
+  airport: "plane",
+  harbor: "docks",
+  magic: "ley",
+  other: "info",
 };
 
 const scaled = (cmds: Cmd[], k: number): Cmd[] =>
   cmds.map((c) => [c[0], ...c.slice(1).map((v) => Math.round(v * k * 10) / 10)]);
+const toCmds = (polys: Poly[], k: number) => scaled(polys.flatMap((s) => polygon(s.p)), k);
 
 /**
- * A location icon: an outlined body (dark fill, stroke in the icon colour)
- * plus filled details in the icon colour. Design units, centred on the spot.
+ * A location icon in four items: the dark inside (the item you drag), the
+ * outline ring and the details in the icon colour, and for a broken location
+ * the strike line. A broken icon has a gap cut around the line.
  */
-interface Icon {
-  outer: Pt[][];
-  detail: Cmd[];
-  /** Half the icon width, for the default label gap. */
-  half: number;
-}
-
-const ICONS: Partial<Record<PlaceKind, Icon>> = {
-  // Mock 14's safehouse: house outline with a filled door.
-  home: { outer: [[[0, -12], [12, -2], [12, 12], [-12, 12], [-12, -2]]], detail: rect(-4, 1, 8, 11), half: 12 },
-};
-
-/** The older solid glyphs, for kinds without an icon yet. */
-function glyph(kind: PlaceKind): Pt[][] {
-  const r = 7;
-  switch (kind) {
-    case "corp":
-      return [[[-r, -r], [r - 3, -r], [r, -r + 3], [r, r], [-r, r]]];
-    case "contact":
-      return [[[0, -r - 1.5], [r + 1.5, 0], [0, r + 1.5], [-r - 1.5, 0]]];
-    case "danger":
-      return [[[0, -r - 2], [r + 2, r], [-r - 2, r]]];
-    case "home":
-      // Diamond ring: the inner contour runs the other way, so it stays open.
-      return [
-        [[0, -r - 2], [r + 2, 0], [0, r + 2], [-r - 2, 0]],
-        [[0, -r + 2], [-r + 2, 0], [0, r - 2], [r - 2, 0]],
-      ];
-    default:
-      return [Array.from({ length: 12 }, (_, i) => [Math.cos((i / 12) * Math.PI * 2) * 5.5, Math.sin((i / 12) * Math.PI * 2) * 5.5] as Pt)];
-  }
-}
-
 export interface SymbolLayout {
   base: Shape;
+  ring: Shape;
   detail: Shape | null;
-  /** The strike line of a broken location. */
   slash: Shape | null;
   /** Half the icon width in scene units. */
   half: number;
   hash: string;
 }
 
-const DIMMED = 0.4;
-
 export const placeColor = (spec: PlaceSpec) => spec.color || KIND_COLOR[spec.kind] || COLOR.white;
 
 export function symbolLayout(spec: PlaceSpec, unit: number): SymbolLayout {
   const color = placeColor(spec);
-  const dim = spec.broken ? DIMMED : 1;
-  const icon = ICONS[spec.kind];
-  const base: Shape = icon
-    ? {
-        commands: scaled(icon.outer.flatMap((p) => polygon(p)), unit),
-        color: COLOR.panel,
-        opacity: dim,
-        stroke: { color, width: 2.5 * unit, opacity: dim },
-      }
-    : {
-        commands: scaled(glyph(spec.kind).flatMap((p) => polygon(p)), unit),
-        color,
-        opacity: dim,
-        stroke: { color: COLOR.panel, width: 1.6 * unit, opacity: dim },
-      };
-  const half = icon?.half ?? 8;
-  // Bottom left to top right, a little past the icon.
-  const e = half + 3;
-  const t = 1.6;
-  const slash: Pt[] = [[-e - t, e - t], [e - t, -e - t], [e + t, -e + t], [-e + t, e + t]];
+  const icon = ICONS[KIND_ICON[spec.kind] ?? "poi"]();
+  const parts = body(icon);
+  const cut = (polys: Poly[]) => (spec.broken ? cutBand(polys) : polys);
+  const detail = cut(icon.detail);
   return {
-    base,
-    detail: icon ? { commands: scaled(icon.detail, unit), color, opacity: dim } : null,
-    slash: spec.broken ? { commands: scaled(polygon(slash), unit), color, opacity: 1, stroke: { color: COLOR.black, width: 1.2 * unit } } : null,
-    half: half * unit,
+    base: { commands: toCmds(cut(parts.inside), unit), color: COLOR.panel, opacity: 1 },
+    ring: { commands: toCmds(cut(parts.ring), unit), color, opacity: 1 },
+    detail: detail.length ? { commands: toCmds(detail, unit), color, opacity: 1 } : null,
+    slash: spec.broken ? { commands: toCmds([slash()], unit), color, opacity: 1 } : null,
+    half: ICON_HALF * unit,
     hash: hashString(JSON.stringify([LAYOUT_VERSION, "symbol", spec.kind, color, !!spec.broken, unit])),
   };
 }

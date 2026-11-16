@@ -40,14 +40,19 @@ export function buildPart(owner: Item, name: PartName, shape: Shape, zIndex: num
   return path;
 }
 
-/** The icon body (the item you drag) plus its locked detail and strike line. */
+/** Symbol parts in drawing order above the icon's dark inside. */
+export const SYMBOL_PARTS = ["ring", "detail", "slash"] as const;
+
+/** The icon's dark inside (the item you drag) plus its locked outline, details and strike line. */
 export function buildSymbol(spec: PlaceSpec, position: Vector2, layout: SymbolLayout): Path[] {
   const path = shapePath(spec.name.split("\n")[0] || "Ort", position, layout.base, LAYER_OF.place, "map-base");
   path.metadata[MAP_SPEC_KEY] = spec;
   path.metadata[MAP_HASH_KEY] = layout.hash;
   const out = [path];
-  if (layout.detail) out.push(buildPart(path, "detail", layout.detail, path.zIndex + 1));
-  if (layout.slash) out.push(buildPart(path, "slash", layout.slash, path.zIndex + 2));
+  SYMBOL_PARTS.forEach((name, i) => {
+    const shape = layout[name];
+    if (shape) out.push(buildPart(path, name, shape, path.zIndex + 1 + i));
+  });
   return out;
 }
 

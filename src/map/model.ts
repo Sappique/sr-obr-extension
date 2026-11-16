@@ -17,8 +17,23 @@ export const LABEL_KEY = `${ID}/mapLabel`;
 /** On a part: which part it is. */
 export const PART_KEY = `${ID}/mapPart`;
 
-export type PlaceKind = "place" | "contact" | "corp" | "danger" | "home";
-export const PLACE_KINDS: PlaceKind[] = ["place", "contact", "corp", "danger", "home"];
+export type PlaceKind =
+  | "person" | "group" | "corp" | "place" | "club" | "danger" | "home" | "airport" | "harbor" | "magic" | "other";
+export const PLACE_KINDS: { id: PlaceKind; label: string }[] = [
+  { id: "place", label: "Location" },
+  { id: "person", label: "Person" },
+  { id: "group", label: "Group" },
+  { id: "corp", label: "Corporation" },
+  { id: "club", label: "Restaurant / club" },
+  { id: "danger", label: "Danger" },
+  { id: "home", label: "Home" },
+  { id: "airport", label: "Airport" },
+  { id: "harbor", label: "Harbor" },
+  { id: "magic", label: "Magical" },
+  { id: "other", label: "Other" },
+];
+/** Kinds from before the icon set, mapped to their new kind. */
+const OLD_KINDS: Record<string, PlaceKind> = { contact: "person" };
 
 export interface PlaceSpec {
   type: "place";
@@ -26,8 +41,10 @@ export interface PlaceSpec {
   name: string;
   kind: PlaceKind;
   align: Align;
-  /** Overrides the kind's colour (e.g. a runner's safehouse). */
+  /** Overrides the kind's colour. */
   color?: string;
+  /** Takes the colour of this crew sheet item, live (e.g. a runner's home). Wins over `color`. */
+  colorSheet?: string;
   /** Destroyed, burned or no longer in use: icon dimmed and struck through. */
   broken?: boolean;
 }
@@ -53,6 +70,12 @@ export interface CrewInfo {
   order: number;
 }
 
+/** A location's colour comes from its linked sheet while that sheet exists. */
+export function livePlace(spec: PlaceSpec, crew: Map<string, CrewInfo>): PlaceSpec {
+  const c = spec.colorSheet ? crew.get(spec.colorSheet) : undefined;
+  return c ? { ...spec, color: c.color } : spec;
+}
+
 /** What a pin shows: its sheet's current values when linked, else its own. */
 export function livePin(spec: PinSpec, crew: Map<string, CrewInfo>): PinSpec {
   const c = spec.sheet ? crew.get(spec.sheet) : undefined;
@@ -62,14 +85,18 @@ export type MapSpec = PlaceSpec | PinSpec;
 
 /** "map-base": symbol or pin; "map-label": a draggable label plate; "map-part": locked drawing. */
 export type MapRole = "map-base" | "map-label" | "map-part";
-export type PartName = "bar" | "text" | "initials" | "detail" | "slash";
+export type PartName = "bar" | "text" | "initials" | "ring" | "detail" | "slash";
 
 export const mapRole = (item: Item) => item.metadata[MAP_ROLE_KEY] as MapRole | undefined;
 export const isMapBase = (item: Item) => mapRole(item) === "map-base";
 
 export function readMapSpec(item: Item): MapSpec | undefined {
   const spec = item.metadata[MAP_SPEC_KEY] as Partial<MapSpec> | undefined;
-  if (spec?.type === "place") return { name: "", kind: "place", align: "left", ...spec } as PlaceSpec;
+  if (spec?.type === "place") {
+    const place = { name: "", kind: "place", align: "left", ...spec } as PlaceSpec;
+    if (!PLACE_KINDS.some((k) => k.id === place.kind)) place.kind = OLD_KINDS[place.kind] ?? "place";
+    return place;
+  }
   if (spec?.type === "pin") return { name: "", short: "", color: "#f5e10a", ...spec } as PinSpec;
   return undefined;
 }

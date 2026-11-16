@@ -80,11 +80,14 @@ Add `http://localhost:5175/manifest.json` as an extension in a separate test roo
 Location markers and runner pins, drawn as vector shapes. The GM client redraws them when
 something changes. "Map markers" tool in the toolbar (GM):
 
-- **Place location:** a symbol by kind (place, contact, corp, danger, home) with a name label.
-  The label is its own item attached to the symbol: drag it anywhere; it follows the symbol.
-  Right-click the symbol or the label, "Edit map marker": name (Enter = new line), kind, and
-  line alignment (Left / Centre / Right). A longer name grows away from the aligned edge. An
-  empty name removes the label; a deleted label comes back while the name is set.
+- **Place location:** an icon by kind (Location, Person, Group, Corporation, Restaurant / club,
+  Danger, Home, Airport, Harbor, Magical, Other; chosen in `designs/18-location-icons.html`) with a
+  name label. The label is its own item attached to the icon: drag it anywhere; it follows the icon.
+  Right-click the icon or the label, "Edit map marker": name (Enter = new line), kind, line
+  alignment (Left / Centre / Right), colour (the kind's, a custom one, or for a home a crew sheet's,
+  which then follows the sheet live) and **Broken** (a rounded strike line in a gap through the
+  icon). A longer name grows away from the aligned edge. An empty name removes the label; a deleted
+  label comes back while the name is set.
 - **Place crew pins:** one pin per crew sheet that isn't on the map yet (not the shared sheet),
   all on the clicked spot. These are **linked**: name, initials, colour and order follow the sheet
   live. **Place a single pin:** a **custom** pin with its own name, initials and colour.

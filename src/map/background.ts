@@ -2,11 +2,11 @@ import OBR, { Item, Path, Vector2 } from "@owlbear-rodeo/sdk";
 import { Fonts, loadFonts } from "../core/fonts";
 import { toEntries } from "../sheets/backend";
 import { defaultAnchor, groupSlots, groupTips, LONE_SLOT, moveAnchor, pickSpot, PinSlot, PinTip } from "./fan";
-import { applyShape, buildLabel, buildPart, buildPin, buildSymbol } from "./items";
+import { applyShape, buildLabel, buildPart, buildPin, buildSymbol, SYMBOL_PARTS } from "./items";
 import { labelLayout, pinLayout, symbolLayout } from "./layout";
 import {
   ID, isMapBase, LABEL_KEY, LabelMeta, MAP_HASH_KEY, MAP_ROLE_KEY, MAP_SPEC_KEY, mapRole, markerUnit, newPin, newPlace,
-  CrewInfo, livePin, PART_KEY, PartName, PinSpec, readMapScale, readMapSpec,
+  CrewInfo, livePin, livePlace, PART_KEY, PartName, PinSpec, readMapScale, readMapSpec,
 } from "./model";
 
 /**
@@ -148,23 +148,22 @@ async function sync(items: Item[]): Promise<boolean> {
       if (initials) follow(initials, base.visible);
       continue;
     }
-    const spec = raw;
+    const spec = livePlace(raw, crew);
 
     const symbol = symbolLayout(spec, u);
-    const symbolParts = { detail: symbol.detail, slash: symbol.slash };
-    const partsOk = (Object.keys(symbolParts) as ("detail" | "slash")[]).every((n) => !!partOf(base.id, n) === !!symbolParts[n]);
+    const partsOk = SYMBOL_PARTS.every((n) => !!partOf(base.id, n) === !!symbol[n]);
     if (base.metadata[MAP_HASH_KEY] !== symbol.hash || !partsOk) {
       edit(base.id, (d) => {
         applyShape(d as Path, symbol.base);
         d.metadata[MAP_HASH_KEY] = symbol.hash;
       });
-      for (const [n, shape] of Object.entries(symbolParts) as ["detail" | "slash", typeof symbol.detail][]) {
-        const z = base.zIndex + (n === "detail" ? 1 : 2);
-        if (shape) setPart(base, n, shape, z);
+      SYMBOL_PARTS.forEach((n, i) => {
+        const shape = symbol[n];
+        if (shape) setPart(base, n, shape, base.zIndex + 1 + i);
         else if (partOf(base.id, n)) remove.push(partOf(base.id, n)!.id);
-      }
+      });
     }
-    for (const n of ["detail", "slash"] as const) {
+    for (const n of SYMBOL_PARTS) {
       const part = partOf(base.id, n);
       if (part) follow(part, base.visible);
     }
