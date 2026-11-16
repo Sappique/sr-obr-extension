@@ -20,33 +20,15 @@ export const PIN = {
   stem: 9,
   /** Half width of the pointer where it leaves the head. */
   neck: 5,
-  /** Space between grouped heads. */
+  /** Reach beyond a head width within which pins count as on one spot. */
   gap: 5,
 };
 
-/** How pins standing on one spot are drawn. */
-export type GroupStyle = "badge" | "badge-slim" | "badge-thin" | "column" | "column-flat" | "column-thin" | "arc" | "fan";
-export const GROUP_STYLES: { id: GroupStyle; label: string }[] = [
-  { id: "badge", label: "Badge (one strip, one pointer)" },
-  { id: "badge-slim", label: "Badge, slim (initials stacked)" },
-  { id: "badge-thin", label: "Badge, thin (initials stacked)" },
-  { id: "column", label: "Column (stacked, one pointer)" },
-  { id: "column-flat", label: "Column, flat" },
-  { id: "column-thin", label: "Column, thin" },
-  { id: "arc", label: "Arc (heads around the spot)" },
-  { id: "fan", label: "Fan (row, converging pointers)" },
-];
-export const DEFAULT_GROUP_STYLE: GroupStyle = "badge";
-
-/** Segment size and initials layout per strip style. */
-const STRIPS: Record<string, { w: number; h: number; text: PinText }> = {
-  badge: { w: 30, h: 30, text: { stack: false, size: 15 } },
-  "badge-slim": { w: 20, h: 32, text: { stack: true, size: 12 } },
-  "badge-thin": { w: 16, h: 30, text: { stack: true, size: 10.5 } },
-  column: { w: 30, h: 30, text: { stack: false, size: 15 } },
-  "column-flat": { w: 30, h: 20, text: { stack: false, size: 12 } },
-  "column-thin": { w: 30, h: 15, text: { stack: false, size: 10 } },
-};
+/**
+ * Pins on one spot are drawn as a thin column: one joined box of short
+ * segments stacked upwards, initials side by side.
+ */
+const COLUMN = { w: 30, h: 15, text: { stack: false, size: 10 } as PinText };
 
 export interface PinText {
   /** One letter per line instead of side by side. */
@@ -138,61 +120,14 @@ const lone = (): PinSlot => {
 export const LONE_SLOT: PinSlot = lone();
 
 /** Drawings for a group standing on one spot, in group order. */
-export function groupSlots(n: number, style: GroupStyle): PinSlot[] {
+export function groupSlots(n: number): PinSlot[] {
   if (n <= 1) return [LONE_SLOT];
-  const { size: s, stem, gap } = PIN;
-  const idx = [...Array(n).keys()];
-  const r1 = (v: number) => Math.round(v * 10) / 10;
-  if (style.startsWith("badge")) {
-    // One strip of segments; the pointer goes straight down from its middle:
-    // from the middle segment, or half from each of the middle two.
-    const { w, h, text } = STRIPS[style];
-    const top = -h - stem;
-    const even = n % 2 === 0;
-    return idx.map((i) => {
-      const l = even ? (i - n / 2) * w : (i - (n - 1) / 2) * w - w / 2;
-      let neck: [number, number] | null = null;
-      if (!even && i === (n - 1) / 2) neck = full(0);
-      if (even && i === n / 2 - 1) neck = [-PIN.neck, 0];
-      if (even && i === n / 2) neck = [0, PIN.neck];
-      return { outline: head(l, top, w, h, i === n - 1, neck), hx: l + w / 2, top, h, text };
-    });
-  }
-  if (style.startsWith("column")) {
-    // One box of heads stacked upwards: the top one has the cut corner, the
-    // bottom one carries the pointer.
-    const { w, h, text } = STRIPS[style];
-    return idx.map((i) => {
-      const top = -h - stem - (n - 1 - i) * h;
-      return { outline: head(-w / 2, top, w, h, i === 0, i === n - 1 ? full(0) : null), hx: 0, top, h, text };
-    });
-  }
-  if (style === "fan") {
-    // Heads in a row, a little higher the wider it gets; every pointer meets the spot.
-    const top = -s - stem - 4 * (n - 1);
-    return idx.map((i) => {
-      const hx = (i - (n - 1) / 2) * (s + gap);
-      return { outline: head(hx - s / 2, top, s, s, true, full(hx)), hx, top, h: s, text: ROW };
-    });
-  }
-  // Arc: heads on an arc above the spot, each pointing in.
-  const step = Math.min((40 * Math.PI) / 180, ((120 * Math.PI) / 180) / (n - 1));
-  const at = (radius: number, i: number) => {
-    const a = (i - (n - 1) / 2) * step;
-    return { hx: r1(radius * Math.sin(a)), top: r1(-radius * Math.cos(a) - s / 2) };
-  };
-  // Square heads: neighbours need a full head of clearance on one axis.
-  let radius = (s + gap) / (2 * Math.sin(step / 2));
-  const clear = (r: number) =>
-    idx.slice(1).every((i) => {
-      const a = at(r, i - 1);
-      const b = at(r, i);
-      return Math.max(Math.abs(a.hx - b.hx), Math.abs(a.top - b.top)) >= s + gap;
-    });
-  while (!clear(radius)) radius += 1;
-  return idx.map((i) => {
-    const { hx, top } = at(radius, i);
-    return { outline: head(hx - s / 2, top, s, s, true, full(hx)), hx, top, h: s, text: ROW };
+  // One box of heads stacked upwards: the top one has the cut corner, the
+  // bottom one carries the pointer.
+  const { w, h, text } = COLUMN;
+  return [...Array(n).keys()].map((i) => {
+    const top = -h - PIN.stem - (n - 1 - i) * h;
+    return { outline: head(-w / 2, top, w, h, i === 0, i === n - 1 ? full(0) : null), hx: 0, top, h, text };
   });
 }
 

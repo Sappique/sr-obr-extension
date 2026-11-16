@@ -1,7 +1,6 @@
 import OBR from "@owlbear-rodeo/sdk";
 import { UI_SCALE } from "../core/style";
-import { GROUP_STYLES } from "../map/fan";
-import { MAP_SCALE, MAP_SCALE_KEY, PIN_STYLE_KEY, readMapScale, readPinStyle } from "../map/model";
+import { MAP_SCALE, MAP_SCALE_KEY, readMapScale } from "../map/model";
 import { ANIMATED_KEY, readAnimated, readUiScale, UI_SCALE_KEY, writeAnimated } from "./items";
 
 /** Action popover. The GM sets the scale; animation is each viewer's own choice. */
@@ -13,9 +12,6 @@ const notice = document.getElementById("notice") as HTMLElement;
 const mapBox = document.getElementById("mapBox") as HTMLElement;
 const mapSlider = document.getElementById("mapScale") as HTMLInputElement;
 const mapValue = document.getElementById("mapValue") as HTMLOutputElement;
-const pinBox = document.getElementById("pinBox") as HTMLElement;
-const pinStyle = document.getElementById("pinStyle") as HTMLSelectElement;
-for (const { id, label } of GROUP_STYLES) pinStyle.add(new Option(label, id));
 mapSlider.min = String(MAP_SCALE.min);
 mapSlider.max = String(MAP_SCALE.max);
 mapSlider.step = String(MAP_SCALE.step);
@@ -39,11 +35,10 @@ function applyRole(role: string) {
   slider.disabled = !gm;
   notice.hidden = gm;
   mapBox.hidden = !gm;
-  pinBox.hidden = !gm;
 }
 
 OBR.onReady(async () => {
-  void OBR.action.setHeight(250);
+  void OBR.action.setHeight(200);
   applyRole(await OBR.player.getRole());
   OBR.player.onChange((player) => applyRole(player.role));
 
@@ -59,10 +54,6 @@ OBR.onReady(async () => {
     void OBR.scene.setMetadata({ [MAP_SCALE_KEY]: Number(mapSlider.value) });
   });
 
-  pinStyle.addEventListener("change", () => {
-    void OBR.scene.setMetadata({ [PIN_STYLE_KEY]: pinStyle.value });
-  });
-
   animated.checked = readAnimated();
   animated.addEventListener("change", () => {
     writeAnimated(animated.checked);
@@ -76,7 +67,6 @@ OBR.onReady(async () => {
       const metadata = await OBR.scene.getMetadata();
       show(readUiScale(metadata));
       showMap(readMapScale(metadata));
-      pinStyle.value = readPinStyle(metadata);
     }
   };
   OBR.scene.onReadyChange(load);
@@ -84,6 +74,5 @@ OBR.onReady(async () => {
   OBR.scene.onMetadataChange((metadata) => {
     if (document.activeElement !== slider) show(readUiScale(metadata));
     if (document.activeElement !== mapSlider) showMap(readMapScale(metadata));
-    pinStyle.value = readPinStyle(metadata);
   });
 });

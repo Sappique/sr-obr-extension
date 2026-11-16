@@ -90,9 +90,8 @@ something changes. "Map markers" tool in the toolbar (GM):
   live. **Place a single pin:** a **custom** pin with its own name, initials and colour.
   "Edit map marker" switches a pin between Crew sheet (pick the sheet) and Custom.
 - **Pins on one spot:** a pin dropped within a head's width of others snaps onto their exact spot,
-  and the group is drawn together (about a second after the drop; only while the GM is in the
-  room). Drag one further away to take it out. The look is a choice in the extension's popover:
-  Badge, Column, Arc or Fan.
+  and the group is drawn as one thin column of their initials with one pointer (about a second
+  after the drop; only while the GM is in the room). Drag one further away to take it out.
 - **Size:** "Map marker size" slider in the extension's popover (GM).
 - **Layers:** pins are on Character (players can move them), locations and labels on Prop.
 

@@ -1,12 +1,12 @@
 import OBR, { Item, Path, Vector2 } from "@owlbear-rodeo/sdk";
 import { Fonts, loadFonts } from "../core/fonts";
 import { toEntries } from "../sheets/backend";
-import { defaultAnchor, GroupStyle, groupSlots, groupTips, LONE_SLOT, moveAnchor, pickSpot, PinSlot, PinTip } from "./fan";
+import { defaultAnchor, groupSlots, groupTips, LONE_SLOT, moveAnchor, pickSpot, PinSlot, PinTip } from "./fan";
 import { applyShape, buildLabel, buildPart, buildPin, buildSymbol } from "./items";
 import { labelLayout, pinLayout, symbolLayout } from "./layout";
 import {
   ID, isMapBase, LABEL_KEY, LabelMeta, MAP_HASH_KEY, MAP_ROLE_KEY, mapRole, markerUnit, newPin, newPlace,
-  CrewInfo, livePin, PART_KEY, PartName, PinSpec, readMapScale, readMapSpec, readPinStyle,
+  CrewInfo, livePin, PART_KEY, PartName, PinSpec, readMapScale, readMapSpec,
 } from "./model";
 
 /**
@@ -21,7 +21,6 @@ const MAX_PASSES = 4;
 let isGm = false;
 let mapScale = 1;
 let gridDpi = 150;
-let pinStyle: GroupStyle = readPinStyle({});
 /** Pin positions after the last sync, to tell which pin was just moved. */
 let lastTips = new Map<string, Vector2>();
 const unit = () => markerUnit(gridDpi, mapScale);
@@ -84,7 +83,7 @@ function planPins(tips: PinTip[], u: number) {
   const plan = new Map<string, { spot: Vector2; slot: PinSlot }>();
   for (const group of groupTips(tips, u)) {
     const spot = group.length > 1 ? pickSpot(group, lastTips) : { x: group[0].x, y: group[0].y };
-    const slots = groupSlots(group.length, pinStyle);
+    const slots = groupSlots(group.length);
     group.forEach((tip, i) => plan.set(tip.id, { spot, slot: slots[i] }));
   }
   return plan;
@@ -236,7 +235,7 @@ async function placePins(specs: PinSpec[], at: Vector2): Promise<Item[]> {
   const fonts = await loadFonts();
   const u = unit();
   const spot = { x: at.x, y: at.y };
-  const slots = groupSlots(specs.length, pinStyle);
+  const slots = groupSlots(specs.length);
   return specs.flatMap((spec, i) => buildPin(spec, spot, pinLayout(fonts, spec, u, slots[i])));
 }
 
@@ -320,7 +319,6 @@ OBR.onReady(async () => {
     if (!ready) return;
     const metadata = await OBR.scene.getMetadata();
     mapScale = readMapScale(metadata);
-    pinStyle = readPinStyle(metadata);
     gridDpi = await OBR.scene.grid.getDpi();
     schedule(await OBR.scene.items.getItems());
     unsubscribe = OBR.scene.items.onChange(schedule);
@@ -329,10 +327,8 @@ OBR.onReady(async () => {
   await watch(await OBR.scene.isReady());
   OBR.scene.onMetadataChange(async (metadata) => {
     const next = readMapScale(metadata);
-    const style = readPinStyle(metadata);
-    if (next === mapScale && style === pinStyle) return;
+    if (next === mapScale) return;
     mapScale = next;
-    pinStyle = style;
     schedule(await OBR.scene.items.getItems());
   });
   OBR.scene.grid.onChange(async (grid) => {

@@ -1,7 +1,7 @@
 // Run with: npm test
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { defaultAnchor, GROUP_STYLES, groupSlots, groupTips, LONE_SLOT, moveAnchor, pickSpot, PIN } from "./fan.ts";
+import { defaultAnchor, groupSlots, groupTips, LONE_SLOT, moveAnchor, pickSpot, PIN } from "./fan.ts";
 
 const unit = 1.5;
 const tip = (id: string, x: number, y: number, rank = id) => ({ id, x, y, rank });
@@ -23,32 +23,19 @@ test("without history the most shared spot wins", () => {
 });
 
 test("a lone pin keeps the plain shape", () => {
-  for (const { id } of GROUP_STYLES) assert.deepEqual(groupSlots(1, id), [LONE_SLOT]);
+  assert.deepEqual(groupSlots(1), [LONE_SLOT]);
 });
 
 const reachesSpot = (outline: [number, number][]) => outline.some(([x, y]) => x === 0 && y === 0);
 
-test("every group style points at the spot and keeps heads apart", () => {
-  for (const { id } of GROUP_STYLES) {
-    for (const n of [2, 3, 4, 6]) {
-      const slots = groupSlots(n, id);
-      assert.equal(slots.length, n);
-      assert.ok(slots.some((s) => reachesSpot(s.outline)), `${id} ${n}: no pointer`);
-      // Head boxes (the pointer below the head left out) may touch but not overlap.
-      const boxes = slots.map((sl) => {
-        const pts = sl.outline.filter(([, y]) => y <= sl.top + sl.h);
-        const xs = pts.map(([x]) => x);
-        return { l: Math.min(...xs), r: Math.max(...xs), t: sl.top, b: sl.top + sl.h };
-      });
-      for (let i = 0; i < n; i++) {
-        for (let j = i + 1; j < n; j++) {
-          const a = boxes[i];
-          const b = boxes[j];
-          const overlap = a.l < b.r - 0.5 && b.l < a.r - 0.5 && a.t < b.b - 0.5 && b.t < a.b - 0.5;
-          assert.ok(!overlap, `${id} ${n}: heads ${i} and ${j} overlap`);
-        }
-      }
-    }
+test("a group is one column that points at the spot, heads apart", () => {
+  for (const n of [2, 3, 4, 6]) {
+    const slots = groupSlots(n);
+    assert.equal(slots.length, n);
+    // Only the bottom segment carries the pointer.
+    assert.deepEqual(slots.map((s) => reachesSpot(s.outline)), slots.map((_, i) => i === n - 1));
+    // Segments are stacked edge to edge, top to bottom in group order.
+    for (let i = 1; i < n; i++) assert.equal(slots[i].top, slots[i - 1].top + slots[i - 1].h, `${n}: segment ${i}`);
   }
 });
 
