@@ -9,6 +9,9 @@ feature: `src/core` is shared, `src/windows` holds the floating windows.
   (Extensions → Add custom extension). Every push to `main` rebuilds and deploys it
   (`.github/workflows/pages.yml`; repo Settings → Pages → Source: GitHub Actions).
 - **Local:** `npm install && npm run dev`, then add `http://localhost:5175/manifest.json`.
+- **After changing `public/manifest.json`:** Owlbear keeps the manifest it saw when the extension
+  was added. Remove the extension (also from your extension list) and add it again, or the old
+  manifest stays in use (e.g. no background page, so no sidebar or tools).
 - **Paths:** the extension may live in a subfolder, so file URLs go through `extUrl()`
   (`src/core/url.ts`) and the build uses relative asset paths (`base: "./"`). Don't write
   `"/something.html"` in code. The manifest is the exception: Owlbear reads its paths from the host
