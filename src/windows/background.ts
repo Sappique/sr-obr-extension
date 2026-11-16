@@ -34,8 +34,9 @@ import {
 } from "./items";
 import { applyWrites, frameBounds, stableTop, TopMemory } from "./frameState";
 import { hashString, layoutWindow, STYLE_VERSION, WindowSpec } from "./layout";
+import { extUrl } from "../core/url";
 
-const ICON = (name: string) => `/icons/${name}.svg`;
+const ICON = (name: string) => extUrl(`icons/${name}.svg`);
 const TOOL_ID = `${ID}/window-tool`;
 const MODE_ID = `${ID}/window-place`;
 const EDITOR_HEIGHT = 560;
@@ -437,7 +438,7 @@ function createContextMenu() {
         filter: { max: 1, roles: ["GM"], every: [frameFilter] },
       },
     ],
-    embed: { url: "/editor.html", height: EDITOR_HEIGHT },
+    embed: { url: extUrl("editor.html"), height: EDITOR_HEIGHT },
   });
 
   OBR.contextMenu.create({

@@ -4,6 +4,7 @@
  */
 import { DICE_POPOVER } from "../sheets/model";
 import { RollMessage } from "./roll";
+import { extUrl } from "../core/url";
 
 export const DICE_BUS = `${DICE_POPOVER}/bus`;
 
@@ -15,7 +16,7 @@ export const GAP = 14;
 
 export const windowId = (slot: number) => `${DICE_POPOVER}/${slot}`;
 /** Must stay identical for a slot: re-opening a popover with another url reloads its page. */
-export const windowUrl = (slot: number) => `/dice.html?slot=${slot}`;
+export const windowUrl = (slot: number) => extUrl(`dice.html?slot=${slot}`);
 
 export type ToWindow =
   /** Manager (re)started: forget any roll and report ready. */

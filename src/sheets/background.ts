@@ -6,12 +6,13 @@
 import OBR from "@owlbear-rodeo/sdk";
 import { startDiceManager } from "../dice/manager";
 import { SHEET_POPOVER, SHEET_POPOVER_POS, SIDEBAR_POPOVER } from "./model";
+import { extUrl } from "../core/url";
 
 OBR.onReady(async () => {
   // Not awaited: popover.open does not always resolve, and the dice popover must open regardless.
   void OBR.popover.open({
     id: SIDEBAR_POPOVER,
-    url: "/sidebar.html?part=strip",
+    url: extUrl("sidebar.html?part=strip"),
     width: 0,
     height: 0,
     anchorOrigin: { horizontal: "LEFT", vertical: "CENTER" },
@@ -25,7 +26,7 @@ OBR.onReady(async () => {
   await new Promise((r) => setTimeout(r, 700));
   void OBR.popover.open({
     id: SHEET_POPOVER,
-    url: "/sidebar.html?part=sheet",
+    url: extUrl("sidebar.html?part=sheet"),
     width: 1,
     height: 1,
     anchorReference: "POSITION",

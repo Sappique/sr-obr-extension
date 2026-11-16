@@ -3,6 +3,16 @@
 Owlbear Rodeo extension for the Shadowrun London campaign. One extension, one folder per
 feature: `src/core` is shared, `src/windows` holds the floating windows.
 
+## Install and develop
+
+- **Published:** add `https://sappique.github.io/sr-obr-extension/manifest.json` in Owlbear Rodeo
+  (Extensions → Add custom extension). Every push to `main` rebuilds and deploys it
+  (`.github/workflows/pages.yml`; repo Settings → Pages → Source: GitHub Actions).
+- **Local:** `npm install && npm run dev`, then add `http://localhost:5175/manifest.json`.
+- **Paths:** the extension may live in a subfolder, so file URLs go through `extUrl()`
+  (`src/core/url.ts`) and the manifest and build (`base: "./"`) use relative paths. Don't write
+  `"/something.html"`.
+
 ## Windows
 
 All text is drawn as vector outlines (Path items), because OBR can't load custom fonts.

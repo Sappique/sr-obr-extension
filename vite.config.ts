@@ -2,6 +2,8 @@ import { resolve } from "path";
 import { defineConfig } from "vite";
 
 export default defineConfig({
+  // Relative asset URLs, so the build works from a subfolder (GitHub Pages).
+  base: "./",
   server: {
     port: 5175,
     strictPort: true,

@@ -2,6 +2,7 @@ import OBR from "@owlbear-rodeo/sdk";
 import { UI_SCALE } from "../core/style";
 import { IMPORT_MODAL_ID, LABEL_SCALE_KEY, MAP_SCALE, MAP_SCALE_KEY, readLabelScale, readMapScale } from "../map/model";
 import { ANIMATED_KEY, readAnimated, readUiScale, UI_SCALE_KEY, writeAnimated } from "./items";
+import { extUrl } from "../core/url";
 
 /** Action popover. The GM sets the scale; animation is each viewer's own choice. */
 const slider = document.getElementById("scale") as HTMLInputElement;
@@ -66,7 +67,7 @@ OBR.onReady(async () => {
     void OBR.scene.setMetadata({ [LABEL_SCALE_KEY]: Number(labelSlider.value) });
   });
   document.getElementById("import")!.addEventListener("click", () => {
-    void OBR.modal.open({ id: IMPORT_MODAL_ID, url: "/map-import.html", width: 620, height: 520 });
+    void OBR.modal.open({ id: IMPORT_MODAL_ID, url: extUrl("map-import.html"), width: 620, height: 520 });
   });
 
   animated.checked = readAnimated();

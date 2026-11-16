@@ -9,13 +9,14 @@ import {
   ID, isMapBase, LABEL_KEY, LabelMeta, MAP_HASH_KEY, MAP_ROLE_KEY, MAP_SPEC_KEY, mapRole, iconUnit, markerUnit, labelSide, labelUnitOf, LABEL_SNAP_KEY, newPin, newPlace,
   CrewInfo, livePin, livePlace, PART_KEY, PartName, PinSpec, readLabelScale, readMapScale, readMapSpec,
 } from "./model";
+import { extUrl } from "../core/url";
 
 /**
  * Map markers: the GM client keeps every marker's drawing in step with its
  * spec, the marker size and (for pins) its neighbours. New markers are built
  * complete, so placing one is a single write.
  */
-const ICON = (name: string) => `/icons/${name}.svg`;
+const ICON = (name: string) => extUrl(`icons/${name}.svg`);
 const TOOL_ID = `${ID}/map-tool`;
 const MAX_PASSES = 4;
 
@@ -332,7 +333,7 @@ function createContextMenu() {
         },
       },
     ],
-    embed: { url: "/map-editor.html", height: 236 },
+    embed: { url: extUrl("map-editor.html"), height: 236 },
   });
 }
 
