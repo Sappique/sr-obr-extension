@@ -3,7 +3,7 @@ import { Fonts, loadFonts } from "../core/fonts";
 import { toEntries } from "../sheets/backend";
 import { defaultAnchor, GroupStyle, groupSlots, groupTips, LONE_SLOT, moveAnchor, pickSpot, PinSlot, PinTip } from "./fan";
 import { applyShape, buildLabel, buildPart, buildPin, buildSymbol } from "./items";
-import { labelLayout, pinLayout, symbolShape } from "./layout";
+import { labelLayout, pinLayout, symbolLayout } from "./layout";
 import {
   ID, isMapBase, LABEL_KEY, LabelMeta, MAP_HASH_KEY, MAP_ROLE_KEY, mapRole, markerUnit, newPin, newPlace,
   PART_KEY, PartName, PinSpec, readMapScale, readMapSpec, readPinStyle,
@@ -132,13 +132,25 @@ async function sync(items: Item[]): Promise<boolean> {
       continue;
     }
 
-    const symbol = symbolShape(spec, u);
-    if (base.metadata[MAP_HASH_KEY] !== symbol.hash) {
+    const symbol = symbolLayout(spec, u);
+    const symbolParts = { detail: symbol.detail, slash: symbol.slash };
+    const partsOk = (Object.keys(symbolParts) as ("detail" | "slash")[]).every((n) => !!partOf(base.id, n) === !!symbolParts[n]);
+    if (base.metadata[MAP_HASH_KEY] !== symbol.hash || !partsOk) {
       edit(base.id, (d) => {
-        applyShape(d as Path, symbol);
+        applyShape(d as Path, symbol.base);
         d.metadata[MAP_HASH_KEY] = symbol.hash;
       });
+      for (const [n, shape] of Object.entries(symbolParts) as ["detail" | "slash", typeof symbol.detail][]) {
+        const z = base.zIndex + (n === "detail" ? 1 : 2);
+        if (shape) setPart(base, n, shape, z);
+        else if (partOf(base.id, n)) remove.push(partOf(base.id, n)!.id);
+      }
     }
+    for (const n of ["detail", "slash"] as const) {
+      const part = partOf(base.id, n);
+      if (part) follow(part, base.visible);
+    }
+    const gap = symbol.half / u + 7;
     const name = spec.name.split("\n")[0] || "Ort";
     if (base.name !== name) edit(base.id, (d) => (d.name = name));
 
@@ -151,7 +163,7 @@ async function sync(items: Item[]): Promise<boolean> {
     }
     const meta: LabelMeta = { unit: u, align: spec.align, width: layout.width, hash: layout.hash };
     if (!plate) {
-      add.push(...buildLabel(base, layout, defaultAnchor(base.position, spec.align, layout.width, u), meta));
+      add.push(...buildLabel(base, layout, defaultAnchor(base.position, spec.align, layout.width, u, gap), meta));
       continue;
     }
     const was = plate.metadata[LABEL_KEY] as LabelMeta | undefined;
@@ -195,12 +207,12 @@ async function placeLocation(position: Vector2): Promise<Item[]> {
   const fonts = await loadFonts();
   const spec = newPlace();
   const u = unit();
-  const symbol = buildSymbol(spec, position, symbolShape(spec, u));
+  const icon = symbolLayout(spec, u);
+  const symbol = buildSymbol(spec, position, icon);
   const layout = labelLayout(fonts, spec, u)!;
-  const label = buildLabel(symbol, layout, defaultAnchor(position, spec.align, layout.width, u), {
-    unit: u, align: spec.align, width: layout.width, hash: layout.hash,
-  });
-  return [symbol, ...label];
+  const anchor = defaultAnchor(position, spec.align, layout.width, u, icon.half / u + 7);
+  const label = buildLabel(symbol[0], layout, anchor, { unit: u, align: spec.align, width: layout.width, hash: layout.hash });
+  return [...symbol, ...label];
 }
 
 /** Pins for the given specs around one point, already fanned out together. */
@@ -273,7 +285,7 @@ function createContextMenu() {
         },
       },
     ],
-    embed: { url: "/map-editor.html", height: 186 },
+    embed: { url: "/map-editor.html", height: 236 },
   });
 }
 

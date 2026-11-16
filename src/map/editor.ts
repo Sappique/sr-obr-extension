@@ -1,6 +1,7 @@
 import OBR from "@owlbear-rodeo/sdk";
 import "../windows/editor.css";
 import type { Align } from "./fan";
+import { placeColor as placeColorOf } from "./layout";
 import { MAP_SPEC_KEY, mapRole, MapSpec, PlaceKind, readMapSpec } from "./model";
 
 /** Context-menu embed: edits the selected location marker (or its label) or pin. */
@@ -9,8 +10,13 @@ const name = $<HTMLTextAreaElement>("name");
 const kind = $<HTMLSelectElement>("kind");
 const short = $<HTMLInputElement>("short");
 const color = $<HTMLInputElement>("color");
+const placeColor = $<HTMLInputElement>("placeColor");
+const kindColor = $<HTMLButtonElement>("kindColor");
+const broken = $<HTMLInputElement>("broken");
+/** Custom colour of the location, or "" for the kind's own. */
+let custom = "";
 const alignButtons = [...$("align").querySelectorAll<HTMLButtonElement>("button")];
-const rows = { place: $("placeRow"), pin: $("pinRow"), hint: $("nameHint") };
+const rows = { place: $("placeRow"), place2: $("placeRow2"), pin: $("pinRow"), hint: $("nameHint") };
 
 let itemId: string | null = null;
 let selectedId: string | null = null;
@@ -22,9 +28,16 @@ function showAlign() {
   for (const b of alignButtons) b.setAttribute("aria-pressed", String(b.dataset.align === align));
 }
 
+function showColor() {
+  placeColor.value = placeColorOf({ type: "place", name: "", kind: kind.value as PlaceKind, align, color: custom });
+  kindColor.disabled = !custom;
+}
+
 function current(): MapSpec | null {
   if (!loaded) return null;
-  if (loaded.type === "place") return { ...loaded, name: name.value, kind: kind.value as PlaceKind, align };
+  if (loaded.type === "place") {
+    return { ...loaded, name: name.value, kind: kind.value as PlaceKind, align, color: custom || undefined, broken: broken.checked || undefined };
+  }
   const initials = short.value.trim().toUpperCase() || name.value.slice(0, 2).toUpperCase();
   return { ...loaded, name: name.value.replace(/\n/g, " "), short: initials, color: color.value };
 }
@@ -53,12 +66,16 @@ async function load(selectedId: string) {
   loaded = spec;
   name.value = spec.name;
   rows.place.hidden = spec.type !== "place";
+  rows.place2.hidden = spec.type !== "place";
   rows.hint.hidden = spec.type !== "place";
   rows.pin.hidden = spec.type !== "pin";
   if (spec.type === "place") {
     kind.value = spec.kind;
     align = spec.align;
     showAlign();
+    custom = spec.color ?? "";
+    broken.checked = !!spec.broken;
+    showColor();
   } else {
     short.value = spec.short;
     color.value = spec.color;
@@ -72,7 +89,21 @@ OBR.onReady(async () => {
     // Pins have one-line names.
     if (e.key === "Enter" && loaded?.type === "pin") e.preventDefault();
   });
-  for (const f of [kind, color]) f.addEventListener("change", save);
+  for (const f of [color, broken]) f.addEventListener("change", save);
+  kind.addEventListener("change", () => {
+    showColor();
+    save();
+  });
+  placeColor.addEventListener("change", () => {
+    custom = placeColor.value;
+    showColor();
+    save();
+  });
+  kindColor.addEventListener("click", () => {
+    custom = "";
+    showColor();
+    save();
+  });
   for (const b of alignButtons) {
     b.addEventListener("click", () => {
       align = b.dataset.align as Align;

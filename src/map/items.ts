@@ -1,6 +1,6 @@
 import { buildPath, Item, Layer, Path, PathCommand, Vector2 } from "@owlbear-rodeo/sdk";
 import type { Cmd } from "../core/geometry";
-import type { LabelLayout, PinLayout, Shape } from "./layout";
+import type { LabelLayout, PinLayout, Shape, SymbolLayout } from "./layout";
 import {
   LABEL_KEY, LabelMeta, MAP_HASH_KEY, MAP_ROLE_KEY, MAP_SPEC_KEY, MapRole, MapSpec, PART_KEY, PartName, PinSpec, PlaceSpec,
 } from "./model";
@@ -16,7 +16,7 @@ export function applyShape(path: Path, shape: Shape) {
   path.style.fillColor = shape.color;
   path.style.fillOpacity = shape.opacity;
   path.style.strokeColor = shape.stroke?.color ?? "#000000";
-  path.style.strokeOpacity = shape.stroke ? 1 : 0;
+  path.style.strokeOpacity = shape.stroke ? (shape.stroke.opacity ?? 1) : 0;
   path.style.strokeWidth = shape.stroke?.width ?? 0;
 }
 
@@ -40,11 +40,15 @@ export function buildPart(owner: Item, name: PartName, shape: Shape, zIndex: num
   return path;
 }
 
-export function buildSymbol(spec: PlaceSpec, position: Vector2, shape: Shape & { hash: string }): Path {
-  const path = shapePath(spec.name.split("\n")[0] || "Ort", position, shape, LAYER_OF.place, "map-base");
+/** The icon body (the item you drag) plus its locked detail and strike line. */
+export function buildSymbol(spec: PlaceSpec, position: Vector2, layout: SymbolLayout): Path[] {
+  const path = shapePath(spec.name.split("\n")[0] || "Ort", position, layout.base, LAYER_OF.place, "map-base");
   path.metadata[MAP_SPEC_KEY] = spec;
-  path.metadata[MAP_HASH_KEY] = shape.hash;
-  return path;
+  path.metadata[MAP_HASH_KEY] = layout.hash;
+  const out = [path];
+  if (layout.detail) out.push(buildPart(path, "detail", layout.detail, path.zIndex + 1));
+  if (layout.slash) out.push(buildPart(path, "slash", layout.slash, path.zIndex + 2));
+  return out;
 }
 
 /** The label plate (draggable, follows the symbol) plus its bar and text. */

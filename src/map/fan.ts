@@ -205,6 +205,6 @@ export function moveAnchor(
 
 /** Default label spot: plate starting a little right of the symbol. */
 export const LABEL_GAP = 14;
-export function defaultAnchor(symbol: { x: number; y: number }, align: Align, width: number, unit: number) {
-  return { x: round(symbol.x + LABEL_GAP * unit - boxLeft(align, width)), y: symbol.y };
+export function defaultAnchor(symbol: { x: number; y: number }, align: Align, width: number, unit: number, gap = LABEL_GAP) {
+  return { x: round(symbol.x + gap * unit - boxLeft(align, width)), y: symbol.y };
 }

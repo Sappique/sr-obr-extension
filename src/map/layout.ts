@@ -14,11 +14,11 @@ export interface Shape {
   commands: Cmd[];
   color: string;
   opacity: number;
-  stroke?: { color: string; width: number };
+  stroke?: { color: string; width: number; opacity?: number };
 }
 
 /** Bump when the drawing changes, so existing markers redraw. */
-const LAYOUT_VERSION = 3;
+const LAYOUT_VERSION = 4;
 
 export const KIND_COLOR: Record<PlaceKind, string> = {
   place: COLOR.white,
@@ -31,6 +31,23 @@ export const KIND_COLOR: Record<PlaceKind, string> = {
 const scaled = (cmds: Cmd[], k: number): Cmd[] =>
   cmds.map((c) => [c[0], ...c.slice(1).map((v) => Math.round(v * k * 10) / 10)]);
 
+/**
+ * A location icon: an outlined body (dark fill, stroke in the icon colour)
+ * plus filled details in the icon colour. Design units, centred on the spot.
+ */
+interface Icon {
+  outer: Pt[][];
+  detail: Cmd[];
+  /** Half the icon width, for the default label gap. */
+  half: number;
+}
+
+const ICONS: Partial<Record<PlaceKind, Icon>> = {
+  // Mock 14's safehouse: house outline with a filled door.
+  home: { outer: [[[0, -12], [12, -2], [12, 12], [-12, 12], [-12, -2]]], detail: rect(-4, 1, 8, 11), half: 12 },
+};
+
+/** The older solid glyphs, for kinds without an icon yet. */
 function glyph(kind: PlaceKind): Pt[][] {
   const r = 7;
   switch (kind) {
@@ -51,13 +68,48 @@ function glyph(kind: PlaceKind): Pt[][] {
   }
 }
 
-export function symbolShape(spec: PlaceSpec, unit: number): Shape & { hash: string } {
+export interface SymbolLayout {
+  base: Shape;
+  detail: Shape | null;
+  /** The strike line of a broken location. */
+  slash: Shape | null;
+  /** Half the icon width in scene units. */
+  half: number;
+  hash: string;
+}
+
+const DIMMED = 0.4;
+
+export const placeColor = (spec: PlaceSpec) => spec.color || KIND_COLOR[spec.kind] || COLOR.white;
+
+export function symbolLayout(spec: PlaceSpec, unit: number): SymbolLayout {
+  const color = placeColor(spec);
+  const dim = spec.broken ? DIMMED : 1;
+  const icon = ICONS[spec.kind];
+  const base: Shape = icon
+    ? {
+        commands: scaled(icon.outer.flatMap((p) => polygon(p)), unit),
+        color: COLOR.panel,
+        opacity: dim,
+        stroke: { color, width: 2.5 * unit, opacity: dim },
+      }
+    : {
+        commands: scaled(glyph(spec.kind).flatMap((p) => polygon(p)), unit),
+        color,
+        opacity: dim,
+        stroke: { color: COLOR.panel, width: 1.6 * unit, opacity: dim },
+      };
+  const half = icon?.half ?? 8;
+  // Bottom left to top right, a little past the icon.
+  const e = half + 3;
+  const t = 1.6;
+  const slash: Pt[] = [[-e - t, e - t], [e - t, -e - t], [e + t, -e + t], [-e + t, e + t]];
   return {
-    commands: scaled(glyph(spec.kind).flatMap((p) => polygon(p)), unit),
-    color: KIND_COLOR[spec.kind] ?? COLOR.white,
-    opacity: 1,
-    stroke: { color: COLOR.panel, width: 1.6 * unit },
-    hash: hashString(JSON.stringify([LAYOUT_VERSION, "symbol", spec.kind, unit])),
+    base,
+    detail: icon ? { commands: scaled(icon.detail, unit), color, opacity: dim } : null,
+    slash: spec.broken ? { commands: scaled(polygon(slash), unit), color, opacity: 1, stroke: { color: COLOR.black, width: 1.2 * unit } } : null,
+    half: half * unit,
+    hash: hashString(JSON.stringify([LAYOUT_VERSION, "symbol", spec.kind, color, !!spec.broken, unit])),
   };
 }
 
@@ -102,13 +154,13 @@ export function labelLayout(fonts: Fonts, spec: PlaceSpec, unit: number): LabelL
       spec.align === "left" ? textLeft : spec.align === "center" ? textLeft + (inner - widths[i]) / 2 : textLeft + inner - widths[i];
     drawText(text, fonts, font, line, x, top + L.padY + i * L.lineHeight + baseline, L.size, { spacing: 0.02 });
   });
-  const color = KIND_COLOR[spec.kind] ?? COLOR.white;
+  const color = placeColor(spec);
   return {
     plate: { commands: scaled(polygon(plate), unit), color: COLOR.panel, opacity: L.plateOpacity },
     bar: { commands: scaled(rect(barRight ? right - L.bar : left, top, L.bar, h), unit), color, opacity: 1 },
     text: { commands: scaled(text, unit), color: spec.kind === "danger" ? "#ff8a9a" : COLOR.white, opacity: 1 },
     width: Math.round(w * unit * 10) / 10,
-    hash: hashString(JSON.stringify([LAYOUT_VERSION, "label", spec.name, spec.kind, spec.align, unit])),
+    hash: hashString(JSON.stringify([LAYOUT_VERSION, "label", spec.name, spec.kind, color, spec.align, unit])),
   };
 }
 
