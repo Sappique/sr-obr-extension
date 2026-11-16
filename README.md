@@ -10,8 +10,9 @@ feature: `src/core` is shared, `src/windows` holds the floating windows.
   (`.github/workflows/pages.yml`; repo Settings → Pages → Source: GitHub Actions).
 - **Local:** `npm install && npm run dev`, then add `http://localhost:5175/manifest.json`.
 - **Paths:** the extension may live in a subfolder, so file URLs go through `extUrl()`
-  (`src/core/url.ts`) and the manifest and build (`base: "./"`) use relative paths. Don't write
-  `"/something.html"`.
+  (`src/core/url.ts`) and the build uses relative asset paths (`base: "./"`). Don't write
+  `"/something.html"` in code. The manifest is the exception: Owlbear reads its paths from the host
+  root, so they start with `/`, and the build prefixes them with `PAGES_BASE` (set by the workflow).
 
 ## Windows
 

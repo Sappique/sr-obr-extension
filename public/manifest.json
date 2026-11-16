@@ -4,12 +4,12 @@
   "manifest_version": 1,
   "author": "Sappique",
   "description": "Windows and sheets for the Shadowrun London campaign",
-  "icon": "icon.svg",
-  "background_url": "background.html",
+  "icon": "/icon.svg",
+  "background_url": "/background.html",
   "action": {
     "title": "Shadowrun VTT options",
-    "icon": "icon.svg",
-    "popover": "settings.html",
+    "icon": "/icon.svg",
+    "popover": "/settings.html",
     "width": 300,
     "height": 110
   }
