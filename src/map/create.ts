@@ -2,7 +2,7 @@ import OBR, { Item, Vector2 } from "@owlbear-rodeo/sdk";
 import type { Fonts } from "../core/fonts";
 import { snapAnchor } from "./fan";
 import { buildLabel, buildSymbol } from "./items";
-import { labelLayout, symbolLayout } from "./layout";
+import { applyTempSettings, labelLayout, symbolLayout } from "./layout";
 import { CrewInfo, iconUnit, labelSide, labelUnitOf, livePlace, PlaceSpec, readLabelScale, readMapScale } from "./model";
 
 /** Scene units per design unit, for icons and for labels. */
@@ -13,6 +13,7 @@ export interface MarkerUnits {
 
 export async function readUnits(): Promise<MarkerUnits> {
   const [metadata, dpi] = await Promise.all([OBR.scene.getMetadata(), OBR.scene.grid.getDpi()]);
+  applyTempSettings(metadata);
   return { icon: iconUnit(dpi, readMapScale(metadata)), label: labelUnitOf(dpi, readLabelScale(metadata)) };
 }
 

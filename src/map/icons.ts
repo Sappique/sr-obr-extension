@@ -182,6 +182,29 @@ export function slash(): Poly {
  * sides of the band (Sutherland-Hodgman against a half plane). Holes keep
  * their direction, so the nonzero fill still works.
  */
+/** The part of the icon that the gap would cut away (to fill it black instead). */
+export function bandInside(icon: Icon, half = SLASH.half + SLASH.gap): Poly[] {
+  const outer = shape(offset(icon.outer.p, OUTLINE / 2));
+  const dist = ([x, y]: Pt) => (x + y) * Math.SQRT1_2;
+  const clip = (pts: Pt[], keep: (d: number) => number) => {
+    const out: Pt[] = [];
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i];
+      const q = pts[(i + 1) % pts.length];
+      const dp = keep(dist(p));
+      const dq = keep(dist(q));
+      if (dp >= 0) out.push(p);
+      if (dp >= 0 !== dq >= 0) {
+        const t = dp / (dp - dq);
+        out.push([r1(p[0] + (q[0] - p[0]) * t), r1(p[1] + (q[1] - p[1]) * t)]);
+      }
+    }
+    return out;
+  };
+  const inBand = clip(clip(outer.p, (v) => half - v), (v) => v + half);
+  return inBand.length > 2 ? [{ p: inBand, hole: false }] : [];
+}
+
 export function cutBand(polys: Poly[], half = SLASH.half + SLASH.gap): Poly[] {
   const dist = ([x, y]: Pt) => (x + y) * Math.SQRT1_2;
   const clip = (pts: Pt[], keep: (d: number) => number) => {

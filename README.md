@@ -109,5 +109,7 @@ something changes. "Map markers" tool in the toolbar (GM):
   `{"name", "kind", "align"?, "color"?, "broken"?, "sheet"?}` (`sheet` = crew handle whose colour a
   home takes); text is one `kind: name` (or just a name) per line, `|` for a line break.
   `designs/locations-import.json` holds all locations from the mock data.
+- **Temporary (while choosing):** the popover has a "Temporary" box with the broken style (gap,
+  black, or no cut) and the corporation colour. Remove both once decided (`TEMP` in `src/map/layout.ts`).
 - **Layers:** pins are on Character (players can move them), locations and labels on Prop.
 

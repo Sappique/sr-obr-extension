@@ -89,7 +89,7 @@ export type MapSpec = PlaceSpec | PinSpec;
 
 /** "map-base": symbol or pin; "map-label": a draggable label plate; "map-part": locked drawing. */
 export type MapRole = "map-base" | "map-label" | "map-part";
-export type PartName = "bar" | "text" | "initials" | "ring" | "detail" | "slash";
+export type PartName = "bar" | "text" | "initials" | "ring" | "detail" | "slashGap" | "slash";
 
 export const mapRole = (item: Item) => item.metadata[MAP_ROLE_KEY] as MapRole | undefined;
 export const isMapBase = (item: Item) => mapRole(item) === "map-base";

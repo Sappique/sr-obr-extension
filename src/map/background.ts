@@ -4,7 +4,7 @@ import { toEntries } from "../sheets/backend";
 import { groupSlots, groupTips, LONE_SLOT, moveAnchor, pickSpot, PinSlot, PinTip, snapAnchor } from "./fan";
 import { buildLocation, LABEL_GAP } from "./create";
 import { applyShape, buildLabel, buildPart, buildPin, SYMBOL_PARTS } from "./items";
-import { labelLayout, pinLayout, symbolLayout } from "./layout";
+import { applyTempSettings, labelLayout, pinLayout, symbolLayout } from "./layout";
 import {
   ID, isMapBase, LABEL_KEY, LabelMeta, MAP_HASH_KEY, MAP_ROLE_KEY, MAP_SPEC_KEY, mapRole, iconUnit, markerUnit, labelSide, labelUnitOf, LABEL_SNAP_KEY, newPin, newPlace,
   CrewInfo, livePin, livePlace, PART_KEY, PartName, PinSpec, readLabelScale, readMapScale, readMapSpec,
@@ -352,6 +352,7 @@ OBR.onReady(async () => {
     const metadata = await OBR.scene.getMetadata();
     mapScale = readMapScale(metadata);
     labelScale = readLabelScale(metadata);
+    applyTempSettings(metadata);
     gridDpi = await OBR.scene.grid.getDpi();
     schedule(await OBR.scene.items.getItems());
     unsubscribe = OBR.scene.items.onChange(schedule);
@@ -361,7 +362,8 @@ OBR.onReady(async () => {
   OBR.scene.onMetadataChange(async (metadata) => {
     const next = readMapScale(metadata);
     const nextLabel = readLabelScale(metadata);
-    if (next === mapScale && nextLabel === labelScale) return;
+    const tempChanged = applyTempSettings(metadata);
+    if (next === mapScale && nextLabel === labelScale && !tempChanged) return;
     mapScale = next;
     labelScale = nextLabel;
     schedule(await OBR.scene.items.getItems());

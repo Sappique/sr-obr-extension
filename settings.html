@@ -12,6 +12,9 @@
       .check { display: flex; align-items: center; gap: 6px; margin-top: 12px; }
       .check input { width: auto; margin: 0; }
       #import { display: block; width: 100%; margin-top: 12px; padding: 6px; color: #07080c; background: #f5e10a; border: none; font: 600 13px system-ui, sans-serif; cursor: pointer; }
+      #temp { margin: 14px 0 0; padding: 6px 10px 10px; border: 1px dashed #3a434b; }
+      #temp legend { padding: 0 4px; font-size: 11px; color: #b3c0c6; }
+      #temp select { display: block; width: 100%; margin-top: 4px; padding: 3px 6px; color: #e3e9ec; background: #07080c; border: 1px solid #3a434b; }
       [hidden] { display: none; }
     </style>
   </head>
@@ -29,6 +32,11 @@
         <input id="labelScale" type="range" />
       </label>
       <button id="import" type="button">Add locations…</button>
+      <fieldset id="temp">
+        <legend>Temporary (while choosing)</legend>
+        <label>Broken locations <select id="brokenStyle"></select></label>
+        <label style="margin-top:8px">Corporation colour <select id="corpColor"></select></label>
+      </fieldset>
     </div>
     <script type="module" src="/src/windows/settings.ts"></script>
   </body>

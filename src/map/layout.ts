@@ -4,7 +4,7 @@ import { COLOR } from "../core/style";
 import { baselineOffset, drawText, measureText } from "../core/vectorText";
 import { hashString } from "../windows/layout";
 import { boxLeft, PinSlot } from "./fan";
-import { body, cutBand, ICON_HALF, IconId, ICONS, Poly, slash } from "./icons";
+import { bandInside, body, cutBand, ICON_HALF, IconId, ICONS, Poly, slash } from "./icons";
 import type { PinSpec, PlaceKind, PlaceSpec } from "./model";
 
 /**
@@ -63,27 +63,65 @@ export interface SymbolLayout {
   base: Shape;
   ring: Shape;
   detail: Shape | null;
+  /** TEMP: the cut area filled black (broken style "black"). */
+  slashGap: Shape | null;
   slash: Shape | null;
   /** Half the icon width in scene units. */
   half: number;
   hash: string;
 }
 
-export const placeColor = (spec: PlaceSpec) => spec.color || KIND_COLOR[spec.kind] || COLOR.white;
+// ---------------------------------------------------------------------------
+// TEMP settings while choosing (scene metadata, set in the options popover).
+
+/** How a broken location's strike line meets the icon. */
+export type BrokenStyle = "gap" | "black" | "none";
+export const BROKEN_STYLES: { id: BrokenStyle; label: string }[] = [
+  { id: "gap", label: "Gap (cut out)" },
+  { id: "black", label: "Black (cut area filled black)" },
+  { id: "none", label: "No cut (line on top)" },
+];
+/** Corporation colour candidates, away from the other kinds' and the runners' colours. */
+export const CORP_COLORS: { id: string; label: string }[] = [
+  { id: "#f5e10a", label: "Yellow (UI accent, current)" },
+  { id: "#ffb000", label: "Gold" },
+  { id: "#d98c5f", label: "Copper" },
+  { id: "#c9d4dc", label: "Chrome" },
+  { id: "#16d3b0", label: "Teal" },
+  { id: "#b5f000", label: "Chartreuse" },
+  { id: "#6f7cff", label: "Indigo" },
+];
+export const TEMP = { broken: "gap" as BrokenStyle, corp: "#f5e10a" };
+export const BROKEN_STYLE_KEY = "sappique.sr-obr/tempBrokenStyle";
+export const CORP_COLOR_KEY = "sappique.sr-obr/tempCorpColor";
+/** Reads the temp settings from scene metadata; returns true if anything changed. */
+export function applyTempSettings(metadata: Record<string, unknown>): boolean {
+  const broken = BROKEN_STYLES.some((b) => b.id === metadata[BROKEN_STYLE_KEY]) ? (metadata[BROKEN_STYLE_KEY] as BrokenStyle) : "gap";
+  const corp = typeof metadata[CORP_COLOR_KEY] === "string" ? (metadata[CORP_COLOR_KEY] as string) : "#f5e10a";
+  const changed = broken !== TEMP.broken || corp !== TEMP.corp;
+  TEMP.broken = broken;
+  TEMP.corp = corp;
+  return changed;
+}
+
+const kindColor = (kind: PlaceKind) => (kind === "corp" ? TEMP.corp : KIND_COLOR[kind]);
+export const placeColor = (spec: PlaceSpec) => spec.color || kindColor(spec.kind) || COLOR.white;
 
 export function symbolLayout(spec: PlaceSpec, unit: number): SymbolLayout {
   const color = placeColor(spec);
   const icon = ICONS[KIND_ICON[spec.kind] ?? "poi"]();
   const parts = body(icon);
-  const cut = (polys: Poly[]) => (spec.broken ? cutBand(polys) : polys);
+  const style = spec.broken ? TEMP.broken : null;
+  const cut = (polys: Poly[]) => (style === "gap" ? cutBand(polys) : polys);
   const detail = cut(icon.detail);
   return {
     base: { commands: toCmds(cut(parts.inside), unit), color: COLOR.panel, opacity: 1 },
     ring: { commands: toCmds(cut(parts.ring), unit), color, opacity: 1 },
     detail: detail.length ? { commands: toCmds(detail, unit), color, opacity: 1 } : null,
+    slashGap: style === "black" ? { commands: toCmds(bandInside(icon), unit), color: COLOR.black, opacity: 1 } : null,
     slash: spec.broken ? { commands: toCmds([slash()], unit), color, opacity: 1 } : null,
     half: ICON_HALF * unit,
-    hash: hashString(JSON.stringify([LAYOUT_VERSION, "symbol", spec.kind, color, !!spec.broken, unit])),
+    hash: hashString(JSON.stringify([LAYOUT_VERSION, "symbol", spec.kind, color, style, unit])),
   };
 }
 

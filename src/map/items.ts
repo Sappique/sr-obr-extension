@@ -41,7 +41,7 @@ export function buildPart(owner: Item, name: PartName, shape: Shape, zIndex: num
 }
 
 /** Symbol parts in drawing order above the icon's dark inside. */
-export const SYMBOL_PARTS = ["ring", "detail", "slash"] as const;
+export const SYMBOL_PARTS = ["ring", "detail", "slashGap", "slash"] as const;
 
 /** The icon's dark inside (the item you drag) plus its locked outline, details and strike line. */
 export function buildSymbol(spec: PlaceSpec, position: Vector2, layout: SymbolLayout): Path[] {
