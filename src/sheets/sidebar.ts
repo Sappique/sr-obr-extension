@@ -317,24 +317,28 @@ function update(fn: (s: Sheet) => void) {
   const e = currentEntry();
   if (e) void backend.update(e.itemId, fn);
 }
-/** Names and die sizes of a roll row ("ai", "ai.si" or "ai.si.pi"). */
+/** Names and die sizes of a roll row ("ai", "ai.si" or "ai.si.pi"), and its VR die if any. */
 function rollParts(s: Sheet, path: string) {
   const [ai, si, pi] = path.split(".").map(Number);
   const a = s.attributes[ai];
   if (!a) return null;
   const parts = [a.name.toUpperCase()]; // attributes are shown in capitals everywhere
   const sizes = [a.die];
+  // vr_ask applies to everything nested below where it is set; the deepest one wins.
+  let vr = a.vr_ask;
   const sk = si !== undefined ? a.skills[si] : undefined;
   if (sk) {
     parts.push(sk.name);
     sizes.push(sk.die);
+    vr = sk.vr_ask ?? vr;
     const p = pi !== undefined ? sk.specializations[pi] : undefined;
     if (p) {
       parts.push(p.name);
       sizes.push(p.die);
+      vr = p.vr_ask ?? vr;
     }
   }
-  return { parts, sizes };
+  return { parts, sizes, vr };
 }
 
 function roll(path: string, extras: ExtraDie[] = []) {
@@ -351,14 +355,14 @@ function roll(path: string, extras: ExtraDie[] = []) {
   );
 }
 
-/** Left click: roll; a sheet with vr_ask asks "In VR?" first. Right click: choose bonus dice. */
+/** Left click: roll; a row with vr_ask (own or inherited) asks "In VR?" first. Right click: choose bonus dice. */
 async function rollFrom(row: HTMLElement, path: string, choose: boolean) {
   const s = currentEntry()?.sheet;
   const r = s && rollParts(s, path);
   if (!s || !r) return;
-  const ctx = { color: s.color, initials: s.initials, what: r.parts.join(" + "), anchor: row, vr: s.vr_ask };
-  if (!choose && !s.vr_ask) return roll(path);
-  const extras = choose ? await askBonus(ctx) : await askVr({ ...ctx, vr: s.vr_ask! });
+  const ctx = { color: s.color, initials: s.initials, what: r.parts.join(" + "), anchor: row, vr: r.vr };
+  if (!choose && !r.vr) return roll(path);
+  const extras = choose ? await askBonus(ctx) : await askVr({ ...ctx, vr: r.vr! });
   if (extras) roll(path, extras);
 }
 

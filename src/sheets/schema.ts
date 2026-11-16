@@ -11,19 +11,27 @@ export type Track = "k" | "p";
 export const STATES: State[] = ["ok", "warn", "crit", "down"];
 export const DIE_SIZES = [4, 6, 8, 10, 12];
 
+/**
+ * `vr_ask` (optional, a die size): rolling this asks "In VR?" first; yes adds a
+ * die of that size as "VR Bonus". It applies to everything nested below where
+ * it is set; a deeper value wins (specialisation, then skill, then attribute).
+ */
 export interface Specialization {
   die: number;
   name: string;
+  vr_ask?: number;
 }
 export interface Skill {
   die: number;
   name: string;
   specializations: Specialization[];
+  vr_ask?: number;
 }
 export interface Attribute {
   die: number;
   name: string;
   skills: Skill[];
+  vr_ask?: number;
 }
 export interface Condition {
   text: string;
@@ -44,12 +52,10 @@ export interface Sheet {
   attributes: Attribute[];
   /** The sheet body as one Markdown document with layout comments (see doc.ts). */
   doc: string;
-  /** If set, a roll first asks "In VR?"; yes adds a die of this size as "VR Bonus". */
-  vr_ask?: number;
 }
 
 /** The parts the GM edits as raw JSON in the sheet (they rarely change). */
-export const STRUCTURE_KEYS = ["handle", "initials", "color", "meta", "attributes", "vr_ask"] as const;
+export const STRUCTURE_KEYS = ["handle", "initials", "color", "meta", "attributes"] as const;
 export type Structure = Pick<Sheet, (typeof STRUCTURE_KEYS)[number]>;
 
 type Obj = Record<string, unknown>;
@@ -94,15 +100,20 @@ export function validateStructure(value: unknown, shared: boolean): string | nul
   if (!Array.isArray(value.attributes)) return '"attributes" must be a list.';
   if (shared && value.attributes.length) return "The shared sheet has no attributes.";
   const okDie = (d: unknown) => typeof d === "number" && DIE_SIZES.includes(d);
-  if (value.vr_ask !== undefined && !okDie(value.vr_ask)) return `"vr_ask" must be a die size (one of ${DIE_SIZES.join(", ")}) or left out.`;
+  const vrHint = `"vr_ask" must be a die size (one of ${DIE_SIZES.join(", ")}) or left out`;
+  const badVr = (o: Obj) => o.vr_ask !== undefined && !okDie(o.vr_ask);
   const dieHint = `"die" (one of ${DIE_SIZES.join(", ")})`;
   for (const a of value.attributes as Obj[]) {
     if (!isObj(a) || !okDie(a.die) || typeof a.name !== "string" || !Array.isArray(a.skills)) return `Attribute ${JSON.stringify(a?.name)}: needs ${dieHint}, "name", "skills".`;
+    if (badVr(a)) return `Attribute ${JSON.stringify(a.name)}: ${vrHint}.`;
     for (const s of a.skills as Obj[]) {
       if (!isObj(s) || !okDie(s.die) || typeof s.name !== "string" || !Array.isArray(s.specializations))
         return `Skill ${JSON.stringify(s?.name)}: needs ${dieHint}, "name", "specializations".`;
-      for (const p of s.specializations as Obj[])
+      if (badVr(s)) return `Skill ${JSON.stringify(s.name)}: ${vrHint}.`;
+      for (const p of s.specializations as Obj[]) {
         if (!isObj(p) || !okDie(p.die) || typeof p.name !== "string") return `Specialization ${JSON.stringify(p?.name)}: needs ${dieHint} and "name".`;
+        if (badVr(p)) return `Specialization ${JSON.stringify(p.name)}: ${vrHint}.`;
+      }
     }
   }
   return null;

@@ -62,9 +62,14 @@ test("normal case only changes names written in capitals", () => {
   assert.equal(normalCase("Physisch"), "Physisch");
 });
 
-test("vr_ask is optional and must be a die size", () => {
-  const base = { handle: "Hawk", initials: "HK", color: "#ff8a1f", meta: [], attributes: [] };
-  assert.equal(validateStructure(base, false), null);
-  assert.equal(validateStructure({ ...base, vr_ask: 8 }, false), null);
-  assert.match(validateStructure({ ...base, vr_ask: 7 }, false) ?? "", /vr_ask/);
+test("vr_ask is optional on attributes, skills and specialisations and must be a die size", () => {
+  const sheet = (vr: Record<string, unknown>) => ({
+    handle: "Hawk", initials: "HK", color: "#ff8a1f", meta: [],
+    attributes: [{ die: 8, name: "Digital", ...vr.a as object, skills: [{ die: 6, name: "Hacken", ...vr.s as object, specializations: [{ die: 4, name: "Drohnen", ...vr.p as object }] }] }],
+  });
+  assert.equal(validateStructure(sheet({}), false), null);
+  assert.equal(validateStructure(sheet({ a: { vr_ask: 8 }, s: { vr_ask: 6 }, p: { vr_ask: 12 } }), false), null);
+  assert.match(validateStructure(sheet({ a: { vr_ask: 7 } }), false) ?? "", /Attribute "Digital": "vr_ask"/);
+  assert.match(validateStructure(sheet({ s: { vr_ask: "8" } }), false) ?? "", /Skill "Hacken": "vr_ask"/);
+  assert.match(validateStructure(sheet({ p: { vr_ask: 3 } }), false) ?? "", /Specialization "Drohnen": "vr_ask"/);
 });
