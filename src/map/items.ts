@@ -61,6 +61,7 @@ export function buildLabel(symbol: Item, layout: LabelLayout, anchor: Vector2, m
   const z = Date.now();
   const plate = shapePath("Map label", anchor, layout.plate, symbol.layer, "map-label");
   plate.attachedTo = symbol.id;
+  plate.locked = symbol.locked;
   plate.disableAttachmentBehavior = ["SCALE", "ROTATION", "LOCKED"];
   plate.visible = symbol.visible;
   plate.zIndex = z;

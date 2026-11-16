@@ -25,6 +25,8 @@ let labelScale = 1;
 let gridDpi = 150;
 /** Pin positions after the last sync, to tell which pin was just moved. */
 let lastTips = new Map<string, Vector2>();
+/** Lock state of location icons and labels after the last sync, to tell which one was just (un)locked. */
+let lastLocked = new Map<string, boolean>();
 const unit = () => markerUnit(gridDpi, mapScale);
 const labelUnit = () => markerUnit(gridDpi, labelScale);
 
@@ -113,6 +115,7 @@ async function sync(items: Item[]): Promise<boolean> {
   const u = unit();
   const lu = labelUnit();
   const crew = crewOf(items);
+  const nextLocked = new Map<string, boolean>();
   const pins = planPins(pinTips(items, crew), u);
   let fonts: Fonts | null = null;
 
@@ -199,6 +202,14 @@ async function sync(items: Item[]): Promise<boolean> {
       setPart(plate, "bar", layout.bar, plate.zIndex + 1);
       setPart(plate, "text", layout.text, plate.zIndex + 2);
     }
+    // Icon and label lock together: whichever was just (un)locked sets the other.
+    if (plate.locked !== base.locked) {
+      const iconChanged = lastLocked.get(base.id) !== base.locked;
+      const target = iconChanged ? plate : base;
+      const locked = iconChanged ? base.locked : plate.locked;
+      edit(target.id, (d) => (d.locked = locked));
+      nextLocked.set(base.id, locked).set(plate.id, locked);
+    } else nextLocked.set(base.id, base.locked).set(plate.id, plate.locked);
     follow(plate, base.visible);
     for (const p of parts.get(plate.id) ?? []) follow(p, base.visible);
   }
@@ -210,6 +221,7 @@ async function sync(items: Item[]): Promise<boolean> {
   }
 
   lastTips = new Map([...pins].map(([id, p]) => [id, p.spot]));
+  lastLocked = nextLocked;
 
   // One update for everything; a plate's new position carries its parts along.
   if (edits.size) {

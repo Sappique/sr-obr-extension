@@ -87,7 +87,8 @@ something changes. "Map markers" tool in the toolbar (GM):
   alignment (Left / Centre / Right), colour (the kind's, a custom one, or for a home a crew sheet's,
   which then follows the sheet live) and **Broken** (a rounded strike line in a gap through the
   icon). A longer name grows away from the aligned edge. An empty name removes the label; a deleted
-  label comes back while the name is set.
+  label comes back while the name is set. Locking or unlocking the icon or the label does the same to
+  the other one.
 - **Place crew pins:** one pin per crew sheet that isn't on the map yet (not the shared sheet),
   all on the clicked spot. These are **linked**: name, initials, colour and order follow the sheet
   live. **Place a single pin:** a **custom** pin with its own name, initials and colour.
