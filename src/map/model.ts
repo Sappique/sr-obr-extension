@@ -38,10 +38,27 @@ export interface PinSpec {
   name: string;
   short: string;
   color: string;
-  /** Crew sheet item this pin was made from, so it isn't added twice. */
+  /**
+   * Linked pin: the crew sheet item it shows. Name, initials, colour and order
+   * then come from the sheet live; the fields here are only the last known
+   * copy, used if the sheet is gone. Without it the pin is custom.
+   */
   sheet?: string;
   /** Crew order, for the order inside a group. */
   order?: number;
+}
+
+export interface CrewInfo {
+  handle: string;
+  initials: string;
+  color: string;
+  order: number;
+}
+
+/** What a pin shows: its sheet's current values when linked, else its own. */
+export function livePin(spec: PinSpec, crew: Map<string, CrewInfo>): PinSpec {
+  const c = spec.sheet ? crew.get(spec.sheet) : undefined;
+  return c ? { ...spec, name: c.handle, short: c.initials, color: c.color, order: c.order } : spec;
 }
 export type MapSpec = PlaceSpec | PinSpec;
 

@@ -2,7 +2,8 @@ import OBR from "@owlbear-rodeo/sdk";
 import "../windows/editor.css";
 import type { Align } from "./fan";
 import { placeColor as placeColorOf } from "./layout";
-import { MAP_SPEC_KEY, mapRole, MapSpec, PlaceKind, readMapSpec } from "./model";
+import { toEntries } from "../sheets/backend";
+import { CrewInfo, livePin, MAP_SPEC_KEY, mapRole, MapSpec, PinSpec, PlaceKind, readMapSpec } from "./model";
 
 /** Context-menu embed: edits the selected location marker (or its label) or pin. */
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -16,7 +17,15 @@ const broken = $<HTMLInputElement>("broken");
 /** Custom colour of the location, or "" for the kind's own. */
 let custom = "";
 const alignButtons = [...$("align").querySelectorAll<HTMLButtonElement>("button")];
-const rows = { place: $("placeRow"), place2: $("placeRow2"), pin: $("pinRow"), hint: $("nameHint") };
+const sheet = $<HTMLSelectElement>("sheet");
+const modeButtons = [...$("mode").querySelectorAll<HTMLButtonElement>("button")];
+const rows = {
+  place: $("placeRow"), place2: $("placeRow2"), pin: $("pinRow"), hint: $("nameHint"),
+  mode: $("modeRow"), link: $("linkRow"), name: $("nameBox"),
+};
+/** Crew sheets in the scene (not the shared one), by item id. */
+let crew = new Map<string, CrewInfo>();
+let linked = false;
 
 let itemId: string | null = null;
 let selectedId: string | null = null;
@@ -33,13 +42,39 @@ function showColor() {
   kindColor.disabled = !custom;
 }
 
+function showMode() {
+  const pin = loaded?.type === "pin";
+  for (const b of modeButtons) b.setAttribute("aria-pressed", String((b.dataset.mode === "linked") === linked));
+  rows.mode.hidden = !pin;
+  rows.link.hidden = !pin || !linked;
+  rows.pin.hidden = !pin || linked;
+  rows.name.hidden = pin && linked;
+}
+
+function fillSheets(selected?: string) {
+  sheet.replaceChildren(...[...crew].map(([id, c]) => new Option(c.handle, id)));
+  if (selected && !crew.has(selected)) sheet.add(new Option("(sheet deleted)", selected));
+  if (selected) sheet.value = selected;
+}
+
+/** Shows a pin's own fields, from what it currently looks like. */
+function showPinFields(spec: PinSpec) {
+  name.value = spec.name;
+  short.value = spec.short;
+  color.value = spec.color;
+}
+
 function current(): MapSpec | null {
   if (!loaded) return null;
   if (loaded.type === "place") {
     return { ...loaded, name: name.value, kind: kind.value as PlaceKind, align, color: custom || undefined, broken: broken.checked || undefined };
   }
+  if (linked && sheet.value) {
+    // Keep a copy of the sheet's look, in case the sheet is deleted later.
+    return livePin({ ...loaded, sheet: sheet.value }, crew);
+  }
   const initials = short.value.trim().toUpperCase() || name.value.slice(0, 2).toUpperCase();
-  return { ...loaded, name: name.value.replace(/\n/g, " "), short: initials, color: color.value };
+  return { type: "pin", name: name.value.replace(/\n/g, " "), short: initials, color: color.value };
 }
 
 function save() {
@@ -65,6 +100,16 @@ async function load(selectedId: string) {
   if (!item || !spec) return;
   loaded = spec;
   name.value = spec.name;
+  if (spec.type === "pin") {
+    const items = await OBR.scene.items.getItems();
+    crew = new Map(
+      toEntries(items)
+        .filter((e) => !e.error && !e.sheet.shared)
+        .map((e) => [e.itemId, { handle: e.sheet.handle, initials: e.sheet.initials, color: e.sheet.color, order: e.sheet.order }]),
+    );
+    linked = !!spec.sheet;
+    fillSheets(spec.sheet);
+  }
   rows.place.hidden = spec.type !== "place";
   rows.place2.hidden = spec.type !== "place";
   rows.hint.hidden = spec.type !== "place";
@@ -77,9 +122,9 @@ async function load(selectedId: string) {
     broken.checked = !!spec.broken;
     showColor();
   } else {
-    short.value = spec.short;
-    color.value = spec.color;
+    showPinFields(livePin(spec, crew));
   }
+  showMode();
   itemId = item.id;
 }
 
@@ -104,6 +149,19 @@ OBR.onReady(async () => {
     showColor();
     save();
   });
+  for (const b of modeButtons) {
+    b.addEventListener("click", () => {
+      if (!loaded || loaded.type !== "pin") return;
+      const next = b.dataset.mode === "linked";
+      if (next === linked) return;
+      if (!next && sheet.value) showPinFields(livePin({ ...loaded, sheet: sheet.value }, crew));
+      if (next && !sheet.value) fillSheets(crew.keys().next().value);
+      linked = next;
+      showMode();
+      save();
+    });
+  }
+  sheet.addEventListener("change", save);
   for (const b of alignButtons) {
     b.addEventListener("click", () => {
       align = b.dataset.align as Align;

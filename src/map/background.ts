@@ -6,7 +6,7 @@ import { applyShape, buildLabel, buildPart, buildPin, buildSymbol } from "./item
 import { labelLayout, pinLayout, symbolLayout } from "./layout";
 import {
   ID, isMapBase, LABEL_KEY, LabelMeta, MAP_HASH_KEY, MAP_ROLE_KEY, mapRole, markerUnit, newPin, newPlace,
-  PART_KEY, PartName, PinSpec, readMapScale, readMapSpec, readPinStyle,
+  CrewInfo, livePin, PART_KEY, PartName, PinSpec, readMapScale, readMapSpec, readPinStyle,
 } from "./model";
 
 /**
@@ -62,15 +62,22 @@ type Edit = (draft: Item) => void;
  * Order inside a group: the crew sidebar's order, read live from the pin's
  * sheet (so reordering the crew reorders the pins), then the name.
  */
-function pinTips(items: Item[]): PinTip[] {
-  const crewOrder = new Map(toEntries(items).map((e) => [e.itemId, e.sheet.order]));
+function pinTips(items: Item[], crew: Map<string, CrewInfo>): PinTip[] {
   return items.flatMap((i) => {
-    const spec = isMapBase(i) ? readMapSpec(i) : undefined;
-    if (spec?.type !== "pin") return [];
-    const order = (spec.sheet && crewOrder.get(spec.sheet)) ?? spec.order ?? 9999;
-    return [{ id: i.id, x: i.position.x, y: i.position.y, rank: `${String(order).padStart(5, "0")}|${spec.name}` }];
+    const raw = isMapBase(i) ? readMapSpec(i) : undefined;
+    if (raw?.type !== "pin") return [];
+    const spec = livePin(raw, crew);
+    return [{ id: i.id, x: i.position.x, y: i.position.y, rank: `${String(spec.order ?? 9999).padStart(5, "0")}|${spec.name}` }];
   });
 }
+
+/** Crew sheets by item id, for linked pins. */
+const crewOf = (items: Item[]) =>
+  new Map<string, CrewInfo>(
+    toEntries(items)
+      .filter((e) => !e.error)
+      .map((e) => [e.itemId, { handle: e.sheet.handle, initials: e.sheet.initials, color: e.sheet.color, order: e.sheet.order }]),
+  );
 
 /** Where every pin stands and how it is drawn: pins on one spot snap together. */
 function planPins(tips: PinTip[], u: number) {
@@ -102,7 +109,8 @@ async function sync(items: Item[]): Promise<boolean> {
   const add: Item[] = [];
   const remove: string[] = [];
   const u = unit();
-  const pins = planPins(pinTips(items), u);
+  const crew = crewOf(items);
+  const pins = planPins(pinTips(items, crew), u);
   let fonts: Fonts | null = null;
 
   /** Redraws a part, or recreates it if it went missing. */
@@ -116,11 +124,12 @@ async function sync(items: Item[]): Promise<boolean> {
   };
 
   for (const base of items.filter(isMapBase)) {
-    const spec = readMapSpec(base);
-    if (!spec) continue;
+    const raw = readMapSpec(base);
+    if (!raw) continue;
     fonts ??= await loadFonts();
 
-    if (spec.type === "pin") {
+    if (raw.type === "pin") {
+      const spec = livePin(raw, crew);
       const { spot, slot } = pins.get(base.id) ?? { spot: base.position, slot: LONE_SLOT };
       // Moving the pin carries its initials along.
       if (spot.x !== base.position.x || spot.y !== base.position.y) edit(base.id, (d) => (d.position = spot));
@@ -137,6 +146,7 @@ async function sync(items: Item[]): Promise<boolean> {
       if (initials) follow(initials, base.visible);
       continue;
     }
+    const spec = raw;
 
     const symbol = symbolLayout(spec, u);
     const symbolParts = { detail: symbol.detail, slash: symbol.slash };

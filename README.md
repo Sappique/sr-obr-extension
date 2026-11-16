@@ -85,9 +85,10 @@ something changes. "Map markers" tool in the toolbar (GM):
   Right-click the symbol or the label, "Edit map marker": name (Enter = new line), kind, and
   line alignment (Left / Centre / Right). A longer name grows away from the aligned edge. An
   empty name removes the label; a deleted label comes back while the name is set.
-- **Place crew pins:** one pin per crew sheet that isn't on the map yet (handle, initials,
-  colour; not the shared sheet), all on the clicked spot. **Place a single pin:** a free pin to
-  rename and recolour.
+- **Place crew pins:** one pin per crew sheet that isn't on the map yet (not the shared sheet),
+  all on the clicked spot. These are **linked**: name, initials, colour and order follow the sheet
+  live. **Place a single pin:** a **custom** pin with its own name, initials and colour.
+  "Edit map marker" switches a pin between Crew sheet (pick the sheet) and Custom.
 - **Pins on one spot:** a pin dropped within a head's width of others snaps onto their exact spot,
   and the group is drawn together (about a second after the drop; only while the GM is in the
   room). Drag one further away to take it out. The look is a choice in the extension's popover:

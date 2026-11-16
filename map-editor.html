@@ -21,7 +21,18 @@
   </head>
   <body>
     <form id="editor">
-      <label>Name <span id="nameHint">(Enter = new line)</span><textarea id="name" autocomplete="off"></textarea></label>
+      <div class="row" id="modeRow">
+        <label>Pin
+          <span class="seg" id="mode">
+            <button type="button" data-mode="linked">Crew sheet</button>
+            <button type="button" data-mode="custom">Custom</button>
+          </span>
+        </label>
+      </div>
+      <div class="row" id="linkRow">
+        <label>Sheet (name, initials and colour follow it)<select id="sheet"></select></label>
+      </div>
+      <label id="nameBox">Name <span id="nameHint">(Enter = new line)</span><textarea id="name" autocomplete="off"></textarea></label>
       <div class="row" id="placeRow">
         <label>Kind
           <select id="kind">
