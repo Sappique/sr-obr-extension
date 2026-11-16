@@ -17,7 +17,7 @@ export const KIND_EDITORS: Record<WindowKind, KindEditor> = {
   calendar: {
     label: "Entries (CSV)",
     actions: [],
-    help: "date, end date, title, type or colour\n24.05.2077, , Deadline Ludis Studio, deadline\n16.04., 17.04., Peppermint Reha, #a46cff\n01.06., , Miete fällig\n\nDates dd.mm.yyyy or dd.mm. (year of the current date).\nEnd date empty = one day.\nType: run, deadline, meeting, past, or a colour #rrggbb.\n\\, = comma in a title.  // comment lines are ignored.",
+    help: "date, end date, title, colour, style\n24.05.2077, , Deadline Ludis Studio, red\n16.04., 17.04., Reha, Peppermint, line\n26.06., , Launch-Event, cyan, outline\n01.06., , Miete fällig\n\nDates dd.mm.yyyy or dd.mm. (year of the current date).\nEnd date empty = one day.\nColour: a runner's name, a colour name (yellow, cyan,\nred, … or any CSS name) or #rrggbb; empty = yellow.\nStyle: box (default), line, outline, text.\nEntries entirely before the current date turn grey.\n\\, = comma in a title.  // comment lines are ignored.",
   },
   feed: {
     label: "Posts (newest first)",

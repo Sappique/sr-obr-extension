@@ -36,6 +36,7 @@ import {
 import { applyWrites, frameBounds, stableTop, TopMemory } from "./frameState";
 import { hashString, layoutWindow, STYLE_VERSION, WindowKind, WindowSpec } from "./layout";
 import { SAMPLES } from "./samples";
+import { toEntries } from "../sheets/backend";
 import { extUrl } from "../core/url";
 
 const ICON = (name: string) => extUrl(`icons/${name}.svg`);
@@ -89,6 +90,14 @@ function toScene(origin: Vector2, rotation: number, offsetY: number): Vector2 {
   return { x: origin.x - offsetY * Math.sin(rad), y: origin.y + offsetY * Math.cos(rad) };
 }
 
+/** Crew handles and colours from the sheets in the scene. */
+const crewColors = (items: Item[]): Record<string, string> =>
+  Object.fromEntries(toEntries(items).filter((e) => !e.error && !e.sheet.shared).map((e) => [e.sheet.handle, e.sheet.color]));
+
+/** A calendar's spec for drawing: with the crew's colours (not stored). */
+const withCrew = (spec: WindowSpec, crew: Record<string, string>): WindowSpec =>
+  spec.kind === "calendar" ? { ...spec, crewColors: crew } : spec;
+
 async function sync(items: Item[]): Promise<boolean> {
   const t = windowTokens(uiScale);
   const partsOf = new Map<string, Path[]>();
@@ -108,6 +117,8 @@ async function sync(items: Item[]): Promise<boolean> {
   const fixes = new Map<string, FrameFix>();
   const boxes = new Map<string, Box & { visible: boolean }>();
   let fonts: Fonts | null = null;
+  // Calendars colour entries by runner name; a crew change redraws them.
+  const crew = crewColors(items);
 
   for (const frame of items.filter(isFrame)) {
     const bounds = frameBounds(frame);
@@ -118,7 +129,7 @@ async function sync(items: Item[]): Promise<boolean> {
       x: bounds.x,
       y: frame.rotation === 0 ? stableTop(bounds.y, bounds.h, tops.get(frame.id)) : bounds.y,
     };
-    const spec = readSpec(frame);
+    const spec = withCrew(readSpec(frame), crew);
     const key = hashString(JSON.stringify([spec, width, uiScale, STYLE_VERSION]));
     const state = frame.metadata[RENDER_KEY] as RenderState | undefined;
     const parts = partsOf.get(frame.id) ?? [];

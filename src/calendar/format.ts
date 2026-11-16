@@ -1,18 +1,22 @@
+import { resolveColor } from "./colors.ts";
+
 /**
  * Calendar entries: one per line, comma-separated (blank lines and `//` comment lines ignored):
  *
- *   date, end date, title, type or colour
- *   24.05.2077, , Deadline Ludis Studio, deadline
- *   16.04., 17.04., Peppermint Reha, #a46cff
+ *   date, end date, title, colour, style
+ *   24.05.2077, , Deadline Ludis Studio, red
+ *   16.04., 17.04., Reha, Peppermint, line
  *
  * Dates are dd.mm.yyyy or dd.mm. (the year defaults to the current date's).
- * The end date is optional (empty = one day). The last column is optional:
- * a type (run, deadline, meeting, past) or a colour like #3fd87f.
+ * The end date is optional (empty = one day). Colour (optional, default
+ * yellow): a runner's name, a colour name (yellow, cyan, red, … or any CSS
+ * name) or #rrggbb. Style (optional): box (default), line, outline or text.
+ * Entries whose days are all before the current date are drawn greyed out.
  * Write `\,` for a comma inside a title and `\\` for a backslash.
  * The current date is not part of the text; it is its own field of the window.
  */
-export type EventType = "run" | "deadline" | "meeting" | "past";
-export const EVENT_TYPES: EventType[] = ["run", "deadline", "meeting", "past"];
+export type EntryStyle = "box" | "line" | "outline" | "text";
+export const ENTRY_STYLES: EntryStyle[] = ["box", "line", "outline", "text"];
 
 export interface Day {
   y: number;
@@ -22,9 +26,11 @@ export interface Day {
 
 export interface CalEvent extends Day {
   title: string;
-  /** A type's look, or a custom colour (filled chip); neither = plain chip. */
-  type?: EventType;
-  color?: string;
+  /** "#rrggbb". */
+  color: string;
+  style: EntryStyle;
+  /** Every day of the entry is before the current date. */
+  past: boolean;
   /** Position in a multi-day entry: 0-based index and length. */
   span?: [number, number];
 }
@@ -80,13 +86,15 @@ export function splitLine(line: string): string[] {
   return cells;
 }
 
-export function parseCalendar(source: string, todayText?: string): Calendar {
+/** `runners`: crew names and their colours, for the colour column. */
+export function parseCalendar(source: string, todayText?: string, runners: Record<string, string> = {}): Calendar {
   const today = parseToday(todayText);
+  const todayN = dayNumber(today);
   const cal: Calendar = { today, events: [], errors: [] };
   source.split("\n").forEach((raw, i) => {
     const line = raw.trim();
     if (!line || line.startsWith("//")) return;
-    const [startText = "", endText = "", title = "", look = ""] = splitLine(line);
+    const [startText = "", endText = "", title = "", colorText = "", styleText = ""] = splitLine(line);
     const where = `Line ${i + 1}`;
     const from = parseDate(startText, today.y);
     if (!from) {
@@ -102,33 +110,38 @@ export function parseCalendar(source: string, todayText?: string): Calendar {
       }
       to = end;
     }
-    let type: EventType | undefined;
-    let color: string | undefined;
-    if (look) {
-      if (/^#[0-9a-f]{6}$/i.test(look)) color = look;
-      else if (EVENT_TYPES.includes(look.toLowerCase() as EventType)) type = look.toLowerCase() as EventType;
-      else cal.errors.push(`${where}: unknown type "${look}" (run, deadline, meeting, past or #rrggbb)`);
+    // Unknown colours and styles keep the entry with the default and are reported.
+    let color = resolveColor(colorText, runners);
+    if (!color) {
+      cal.errors.push(`${where}: unknown colour "${colorText}" (a runner, a colour name or #rrggbb)`);
+      color = resolveColor("")!;
+    }
+    let style: EntryStyle = "box";
+    if (styleText) {
+      const s = styleText.toLowerCase() as EntryStyle;
+      if (ENTRY_STYLES.includes(s)) style = s;
+      else cal.errors.push(`${where}: unknown style "${styleText}" (${ENTRY_STYLES.join(", ")})`);
     }
     const a = dayNumber(from);
     const b = Math.max(a, dayNumber(to));
+    const past = b < todayN;
     for (let n = a; n <= b && n - a < 366; n++) {
-      cal.events.push({ ...fromNumber(n), title, type, color, span: b > a ? [n - a, b - a + 1] : undefined });
+      cal.events.push({ ...fromNumber(n), title, color, style, past, span: b > a ? [n - a, b - a + 1] : undefined });
     }
   });
   return cal;
 }
 
 export const SAMPLE_TODAY = "19.05.2077";
-export const SAMPLE_CALENDAR = `// date, end date, title, type or #colour
-12.03., , Run: Bog Treasure Leak, past
-20.04., , Treffen mit Abigale (Ice Palace), meeting
-08.05., 09.05., Phlox: Aqua Umbra brauen, #3fd87f
-12.05., , Hawk: Knöchel gebrochen, #ff8a1f
-17.05., , Run: Adventure Land Start, run
-18.05., , Betham Farming Gelände, run
-19.05., , Hinterhof NC-7, run
-24.05., , Deadline Ludis Studio, deadline
-01.06., , Miete fällig, deadline
-02.06., 04.06., Peppermint: Reha\\, Teil 2, #a46cff
-26.06., , Adventure Land 2 Launch-Event, meeting
+export const SAMPLE_CALENDAR = `// date, end date, title, colour, style
+12.03., , Run: Bog Treasure Leak
+20.04., , Treffen mit Abigale (Ice Palace), cyan, outline
+08.05., 09.05., Aqua Umbra brauen, Phlox, line
+12.05., , Knöchel gebrochen, Hawk, line
+17.05., , Run: Adventure Land Start
+18.05., 20.05., Betham Farming Gelände
+24.05., , Deadline Ludis Studio, red
+01.06., , Miete fällig, red, text
+02.06., 04.06., Reha\\, Teil 2, Peppermint, line
+26.06., , Adventure Land 2 Launch-Event, cyan, outline
 `;

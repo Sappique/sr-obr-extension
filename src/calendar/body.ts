@@ -3,14 +3,12 @@ import type { FontKey } from "../core/fonts";
 import { rect, rectRing } from "../core/geometry";
 import { COLOR } from "../core/style";
 import type { WindowSpec } from "../windows/layout";
-import { CalEvent, Calendar, Day, dayNumber, daysIn, EventType, parseCalendar, weekday } from "./format";
+import { CalEvent, Calendar, Day, dayNumber, daysIn, parseCalendar, weekday } from "./format";
 
 const MONTHS = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
 const WEEKDAYS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 const DAYNAMES = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
 
-/** Deadlines first, then runs, meetings, past runs, everything else. */
-const ORDER: Record<EventType | "other", number> = { deadline: 0, run: 1, meeting: 2, past: 3, other: 4 };
 
 /** Every month has six rows, so a day cell is always the same size. */
 const ROWS = 6;
@@ -21,7 +19,7 @@ const ROWS = 6;
  * inside them, and what doesn't fit is summed up as "+N".
  */
 export function calendarBody(ctx: BodyContext, spec: WindowSpec, x: number, y: number, width: number): number {
-  const cal = parseCalendar(spec.markdown, spec.today);
+  const cal = parseCalendar(spec.markdown, spec.today, spec.crewColors);
   const { u } = ctx;
   let bottom = hero(ctx, cal, x, y, width) + u(26);
 
@@ -55,7 +53,6 @@ function hero(ctx: BodyContext, cal: Calendar, x: number, y: number, width: numb
   return y + lh;
 }
 
-const kindOf = (e: CalEvent): EventType | "other" => e.type ?? "other";
 
 /** One month: name (yellow for the current one), weekday row and six rows of fixed-size day cells. */
 function month(ctx: BodyContext, cal: Calendar, which: { y: number; m: number }, x: number, y: number, width: number, current: boolean): number {
@@ -96,17 +93,17 @@ function cell(ctx: BodyContext, cal: Calendar, day: Day, x: number, y: number, w
   const { u } = ctx;
   const s = u;
   const today = fromToday === 0;
-  ctx.add("fill", COLOR.white, today ? 0.07 : 0.03, rect(x, y, w, h));
+  // A clear tile per day: a light fill and a thin frame (today: yellow, thicker).
+  ctx.add("fill", COLOR.white, today ? 0.09 : 0.06, rect(x, y, w, h));
   if (today) ctx.add("text", COLOR.yellow, 1, rectRing(x, y, w, h, s(3)));
+  else ctx.add("fill", COLOR.white, 0.16, rectRing(x, y, w, h, s(1)));
   const numH = s(22);
   ctx.line(String(day.d).padStart(2, "0"), x + s(6), y + s(2), numH, {
-    font: "mono", size: s(13), color: today ? COLOR.yellow : fromToday < 0 ? COLOR.steel : COLOR.dim,
+    font: "mono", size: s(13), color: today ? COLOR.yellow : COLOR.body,
   });
 
   const n = dayNumber(day);
-  const events = cal.events
-    .filter((e) => dayNumber(e) === n)
-    .sort((a, b) => ORDER[kindOf(a)] - ORDER[kindOf(b)]);
+  const events = cal.events.filter((e) => dayNumber(e) === n);
   const pad = s(5);
   const font: FontKey = "regular";
   const size = s(12.5);
@@ -149,25 +146,33 @@ function onFill(hex: string): string {
   return lum > 140 ? COLOR.black : COLOR.white;
 }
 
-/** Draws one entry; returns its bottom. */
+/** Past entries keep their style but turn grey. */
+const PAST = { color: COLOR.grey, fill: 0.45 };
+
+/** Draws one entry in its style; returns its bottom. */
 function chip(ctx: BodyContext, e: CalEvent, lines: string[], x: number, y: number, w: number, lh: number, pad: number, size: number, font: FontKey) {
   const h = lines.length * lh + 2 * pad;
-  let text: string = COLOR.body;
-  if (e.color || e.type === "run" || e.type === "deadline") {
-    const fill = e.color ?? (e.type === "run" ? COLOR.yellow : COLOR.red);
-    ctx.add("fill", fill, 1, rect(x, y, w, h));
-    text = e.type === "deadline" && !e.color ? COLOR.white : onFill(fill);
-  } else if (e.type === "past") {
-    ctx.add("fill", COLOR.grey, 0.45, rect(x, y, w, h));
-    text = COLOR.white;
-  } else if (e.type === "meeting") {
-    ctx.add("text", COLOR.cyan, 1, rectRing(x, y, w, h, Math.max(1, pad * 0.5)));
-    text = COLOR.cyan;
-  } else {
-    ctx.add("fill", COLOR.body, 1, rect(x, y, Math.max(1, pad), h));
+  const color = e.past ? PAST.color : e.color;
+  let text = color;
+  let textX = x + pad * 2;
+  switch (e.style) {
+    case "box":
+      ctx.add("fill", color, e.past ? PAST.fill : 1, rect(x, y, w, h));
+      text = e.past ? COLOR.white : onFill(color);
+      break;
+    case "line":
+      ctx.add("fill", color, 1, rect(x, y, Math.max(1, pad * 1.2), h));
+      text = e.past ? COLOR.grey : COLOR.body;
+      textX = x + pad * 3;
+      break;
+    case "outline":
+      ctx.add("text", color, 1, rectRing(x, y, w, h, Math.max(1, pad * 0.5)));
+      break;
+    case "text":
+      break;
   }
   lines.forEach((line, i) => {
-    if (line) ctx.line(line, x + pad * 2, y + pad + i * lh, lh, { font, size, color: text });
+    if (line) ctx.line(line, textX, y + pad + i * lh, lh, { font, size, color: text });
   });
   return y + h;
 }

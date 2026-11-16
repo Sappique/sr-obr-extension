@@ -35,6 +35,8 @@ export interface WindowSpec {
   kind?: WindowKind;
   /** Calendar only: the current date, dd.mm.yyyy. */
   today?: string;
+  /** Calendar only, not stored: crew names and colours, filled in by the GM's sync. */
+  crewColors?: Record<string, string>;
 }
 
 /** "base" is the header band: it must stay below every other fill. */
