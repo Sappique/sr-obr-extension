@@ -14,6 +14,11 @@
           <select id="variant"><option value="standard">Standard</option><option value="brief">Brief</option></select>
         </label>
       </div>
+      <div id="todayRow" class="row" hidden>
+        <label>Current date
+          <span class="today"><button type="button" id="todayMinus">−1</button><input id="today" type="text" autocomplete="off" placeholder="19.05.2077" /><button type="button" id="todayPlus">+1</button></span>
+        </label>
+      </div>
       <div id="tools" class="tools"></div>
       <label class="grow"><span id="textLabel">Text (Markdown)</span><textarea id="markdown" spellcheck="false"></textarea></label>
       <details id="helpBox"><summary>Format</summary><pre id="help"></pre></details>

@@ -1,4 +1,4 @@
-import { SAMPLE_CALENDAR } from "../calendar/format";
+import { SAMPLE_CALENDAR, SAMPLE_TODAY } from "../calendar/format";
 import { SAMPLE_FEED } from "../feed/format";
 import { SAMPLE_INFLUENCE } from "../influence/format";
 import type { WindowKind, WindowSpec } from "./layout";
@@ -13,7 +13,7 @@ export const SAMPLES: Record<WindowKind, { spec: WindowSpec; width: number; labe
   calendar: {
     label: "Calendar",
     width: 1500,
-    spec: { title: "Chrono // Kalender 2077", tag: "Chrono", variant: "standard", markdown: SAMPLE_CALENDAR, kind: "calendar" },
+    spec: { title: "Chrono // Kalender 2077", tag: "Chrono", variant: "standard", markdown: SAMPLE_CALENDAR, kind: "calendar", today: SAMPLE_TODAY },
   },
   feed: {
     label: "Matrix feed",

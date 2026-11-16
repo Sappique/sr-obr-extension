@@ -1,33 +1,33 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { parseCalendar, shiftToday, weekday } from "./format.ts";
+import { parseCalendar, parseToday, shiftDay, splitLine, weekday } from "./format.ts";
 
-test("today, note and runners", () => {
-  const cal = parseCalendar("Today: 19.05.2077\nNote: Run-Tag 3\nRunner: Hawk #ff8a1f");
-  assert.deepEqual(cal.today, { y: 2077, m: 5, d: 19 });
-  assert.equal(cal.note, "Run-Tag 3");
-  assert.deepEqual(cal.runners, [{ name: "Hawk", color: "#ff8a1f" }]);
-  assert.equal(weekday(cal.today), 2); // Wednesday
+test("the current date is its own field and moves by days", () => {
+  assert.deepEqual(parseToday("19.05.2077"), { y: 2077, m: 5, d: 19 });
+  assert.equal(weekday(parseToday("19.05.2077")), 2); // Wednesday
+  assert.equal(shiftDay("31.05.2077", 1), "01.06.2077");
+  assert.equal(shiftDay("01.03.2077", -1), "28.02.2077");
+  assert.deepEqual(parseToday("nonsense"), { y: 2077, m: 1, d: 1 });
 });
 
-test("events default to today's year, ranges expand, downtime finds the runner", () => {
-  const cal = parseCalendar("Today: 19.05.2077\nRunner: Peppermint #a46cff\n16.04.-17.04. downtime Peppermint Reha\n24.05. deadline Ludis");
-  assert.equal(cal.events.length, 3);
-  assert.deepEqual(cal.events.map((e) => [e.d, e.m, e.y, e.type, e.who ?? "", e.title]), [
-    [16, 4, 2077, "downtime", "Peppermint", "Reha"],
-    [17, 4, 2077, "downtime", "Peppermint", "Reha"],
-    [24, 5, 2077, "deadline", "", "Ludis"],
-  ]);
-  assert.deepEqual(cal.events[1].span, [1, 2]);
+test("csv lines: date, optional end date, title, optional type or colour", () => {
+  const cal = parseCalendar("24.05., , Deadline Ludis, deadline\n16.04.2077, 17.04., Reha, #a46cff\n01.06.,,Miete", "19.05.2077");
+  assert.deepEqual(cal.errors, []);
+  assert.equal(cal.events.length, 4);
+  assert.deepEqual(cal.events[0], { y: 2077, m: 5, d: 24, title: "Deadline Ludis", type: "deadline", color: undefined, span: undefined });
+  assert.deepEqual(cal.events[1].span, [0, 2]);
+  assert.equal(cal.events[2].color, "#a46cff");
+  assert.equal(cal.events[3].title, "Miete");
+  assert.equal(cal.events[3].type, undefined);
 });
 
-test("bad lines are reported, comments ignored", () => {
-  const cal = parseCalendar("Today: 19.05.2077\n// note\n24.05. party Fest\nfoo");
-  assert.equal(cal.events.length, 0);
-  assert.equal(cal.errors.length, 2);
+test("backslash escapes commas", () => {
+  assert.deepEqual(splitLine("01.06., , Reha\\, Teil 2, run"), ["01.06.", "", "Reha, Teil 2", "run"]);
+  assert.deepEqual(splitLine("a\\\\,b"), ["a\\", "b"]);
 });
 
-test("shiftToday crosses month ends and keeps the rest", () => {
-  assert.equal(shiftToday("Today: 31.05.2077\nx", 1), "Today: 01.06.2077\nx");
-  assert.equal(shiftToday("24.05. run X", 1).split("\n")[0].startsWith("Today:"), true);
+test("bad lines are reported, comments skipped; an unknown type keeps the entry", () => {
+  const cal = parseCalendar("// comment\n32.05., , X\n01.05., 99.99., Y\n01.05., , Z, party", "19.05.2077");
+  assert.equal(cal.errors.length, 3);
+  assert.deepEqual(cal.events.map((e) => [e.title, e.type]), [["Z", undefined]]);
 });

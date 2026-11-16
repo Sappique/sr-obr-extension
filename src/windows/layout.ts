@@ -33,6 +33,8 @@ export interface WindowSpec {
   variant: "standard" | "brief";
   markdown: string;
   kind?: WindowKind;
+  /** Calendar only: the current date, dd.mm.yyyy. */
+  today?: string;
 }
 
 /** "base" is the header band: it must stay below every other fill. */
@@ -55,11 +57,11 @@ export interface WindowLayout {
 /** About 90 kB of JSON; longer text splits into several Path items. */
 const MAX_COMMANDS_PER_PART = 3000;
 
-type BodyRenderer = (ctx: BodyContext, source: string, x: number, y: number, width: number) => number;
+type BodyRenderer = (ctx: BodyContext, spec: WindowSpec, x: number, y: number, width: number) => number;
 const BODIES: Record<Exclude<WindowKind, "markdown">, BodyRenderer> = {
   calendar: calendarBody,
-  feed: (ctx, source, x, y, width) => ctx.markdown(source, x, y, width),
-  influence: (ctx, source, x, y, width) => ctx.markdown(source, x, y, width),
+  feed: (ctx, spec, x, y, width) => ctx.markdown(spec.markdown, x, y, width),
+  influence: (ctx, spec, x, y, width) => ctx.markdown(spec.markdown, x, y, width),
 };
 
 export function hashString(text: string): string {
@@ -581,7 +583,7 @@ export function layoutWindow(
   const bodyWidth = width - 2 * b.padX;
   const end = kind === "markdown"
     ? renderer.blocks(parseMarkdown(spec.markdown), bodyX, bodyY, bodyWidth, base)
-    : BODIES[kind](bodyContext(fonts, canvas, renderer, t, scale, base), spec.markdown, bodyX, bodyY, bodyWidth);
+    : BODIES[kind](bodyContext(fonts, canvas, renderer, t, scale, base), spec, bodyX, bodyY, bodyWidth);
   const height = Math.max(end + b.padBottom, t.cut * 2 + headerHeight);
   canvas.flushWindowLevel();
 

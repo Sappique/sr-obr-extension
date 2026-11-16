@@ -1,4 +1,3 @@
-import { shiftToday } from "../calendar/format";
 import { addWeek } from "../influence/format";
 import type { WindowKind } from "./layout";
 
@@ -16,13 +15,9 @@ export const KIND_EDITORS: Record<WindowKind, KindEditor> = {
     help: "# H1, ## H2, ### H3 (with line)\n**bold**  *italic*  ~~strike~~\n- bullet   1. numbered   - [x] task\n> quote\n> [!Reward] 6.000 ¥ / P\n> callout body",
   },
   calendar: {
-    label: "Calendar entries",
-    actions: [
-      { label: "Today −1", apply: (t) => shiftToday(t, -1) },
-      { label: "Today +1", apply: (t) => shiftToday(t, 1) },
-      { label: "Today +7", apply: (t) => shiftToday(t, 7) },
-    ],
-    help: "Today: 19.05.2077\nNote: Run-Tag 3 · 22:47\nRunner: Phlox #3fd87f\n\n24.05. deadline Deadline Ludis Studio\n26.06. meeting Launch-Event\n17.05. run Run: Adventure Land\n12.03. past Run: Bog Treasure\n16.04.-17.04. downtime Peppermint Reha\n\nDates dd.mm. or dd.mm.yyyy; ranges a-b.\n// comment lines are ignored.",
+    label: "Entries (CSV)",
+    actions: [],
+    help: "date, end date, title, type or colour\n24.05.2077, , Deadline Ludis Studio, deadline\n16.04., 17.04., Peppermint Reha, #a46cff\n01.06., , Miete fällig\n\nDates dd.mm.yyyy or dd.mm. (year of the current date).\nEnd date empty = one day.\nType: run, deadline, meeting, past, or a colour #rrggbb.\n\\, = comma in a title.  // comment lines are ignored.",
   },
   feed: {
     label: "Posts (newest first)",

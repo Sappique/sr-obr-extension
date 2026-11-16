@@ -24,3 +24,8 @@ details { font-size: 11px; color: #b3c0c6; }
 details[hidden] { display: none; }
 summary { cursor: pointer; }
 pre { margin: 4px 0 0; white-space: pre-wrap; font: 11px/1.35 monospace; color: #b3c0c6; max-height: 140px; overflow: auto; }
+.today { display: flex; gap: 4px; }
+.today input { flex: 1; text-align: center; font: 600 14px monospace; }
+.today button { flex: 0 0 38px; color: #e3e9ec; background: rgba(7, 8, 12, .75); border: 1px solid #3a434b; font: 600 13px system-ui, sans-serif; cursor: pointer; }
+.today button:hover { border-color: #f5e10a; }
+[hidden] { display: none !important; }

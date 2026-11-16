@@ -1,45 +1,47 @@
 import type { BodyContext } from "../core/body";
+import type { FontKey } from "../core/fonts";
 import { rect, rectRing } from "../core/geometry";
 import { COLOR } from "../core/style";
-import {
-  CalEvent, Calendar, Day, dayNumber, EventType, fromNumber, parseCalendar, short, weekday,
-} from "./format";
+import type { WindowSpec } from "../windows/layout";
+import { CalEvent, Calendar, Day, dayNumber, daysIn, EventType, parseCalendar, weekday } from "./format";
 
 const MONTHS = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
 const WEEKDAYS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 const DAYNAMES = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
 
-const TYPE_COLOR: Record<EventType, string> = {
-  run: COLOR.yellow,
-  deadline: COLOR.red,
-  meeting: COLOR.cyan,
-  past: COLOR.grey,
-  downtime: COLOR.body,
-};
-const ORDER: Record<EventType, number> = { deadline: 0, run: 1, meeting: 2, past: 3, downtime: 4 };
+/** Deadlines first, then runs, meetings, past runs, everything else. */
+const ORDER: Record<EventType | "other", number> = { deadline: 0, run: 1, meeting: 2, past: 3, other: 4 };
 
-/** Two columns from this width on (design px); narrower windows stack. */
-const TWO_COLUMNS = 1000;
+/** Share of the width for the current month; the months before and after split the rest. */
+const CURRENT_SHARE = 0.46;
+/** Every month has six rows, so a day cell is always the same size. */
+const ROWS = 6;
 
-export function calendarBody(ctx: BodyContext, source: string, x: number, y: number, width: number): number {
-  const cal = parseCalendar(source);
+/**
+ * The calendar: a big current date, then the month before, the current month
+ * (largest) and the month after. Day cells have a fixed size; event titles wrap
+ * inside them, and what doesn't fit is summed up as "+N".
+ */
+export function calendarBody(ctx: BodyContext, spec: WindowSpec, x: number, y: number, width: number): number {
+  const cal = parseCalendar(spec.markdown, spec.today);
   const { u } = ctx;
-  const two = width >= u(TWO_COLUMNS);
-  const gap = u(40);
-  const leftW = two ? Math.round((width - gap) * 0.54) : width;
-  const rightX = two ? x + leftW + gap : x;
-  const rightW = two ? width - leftW - gap : width;
+  let bottom = hero(ctx, cal, x, y, width) + u(26);
 
-  let left = hero(ctx, cal, x, y, leftW);
-  left = monthGrid(ctx, cal, x, left + u(14), leftW);
-  left = legend(ctx, cal, x, left + u(16), leftW);
-
-  let right = two ? y : left + u(26);
-  right = upcoming(ctx, cal, rightX, right, rightW);
-  right = runLog(ctx, cal, rightX, right + u(18), rightW);
-  right = downtime(ctx, cal, rightX, right + u(18), rightW);
-  if (cal.errors.length) right = errors(ctx, cal.errors, rightX, right + u(14), rightW);
-  return Math.max(two ? left : 0, right);
+  const gap = u(30);
+  const mid = (width - 2 * gap) * CURRENT_SHARE;
+  const side = (width - 2 * gap - mid) / 2;
+  const t = cal.today;
+  const prev = t.m === 1 ? { y: t.y - 1, m: 12 } : { y: t.y, m: t.m - 1 };
+  const next = t.m === 12 ? { y: t.y + 1, m: 1 } : { y: t.y, m: t.m + 1 };
+  const k = side / mid;
+  const ends = [
+    month(ctx, cal, prev, x, bottom, side, k),
+    month(ctx, cal, { y: t.y, m: t.m }, x + side + gap, bottom, mid, 1),
+    month(ctx, cal, next, x + side + gap + mid + gap, bottom, side, k),
+  ];
+  bottom = Math.max(...ends);
+  if (cal.errors.length) bottom = errors(ctx, cal.errors, x, bottom + u(16), width);
+  return bottom;
 }
 
 function hero(ctx: BodyContext, cal: Calendar, x: number, y: number, width: number): number {
@@ -52,258 +54,170 @@ function hero(ctx: BodyContext, cal: Calendar, x: number, y: number, width: numb
   ctx.line(`${MONTHS[t.m - 1]} ${t.y}`, tx, y + u(14), u(46), {
     font: "bold", size: u(42), color: COLOR.white, spacing: 0.1, upper: true, maxWidth: width - (tx - x),
   });
-  const sub = [DAYNAMES[weekday(t)], cal.note].filter(Boolean).join(" · ");
-  ctx.line(sub, tx, y + u(66), u(20), {
+  ctx.line(DAYNAMES[weekday(t)], tx, y + u(66), u(20), {
     font: "mono", size: u(14), color: COLOR.dim, spacing: 0.2, upper: true, maxWidth: width - (tx - x),
   });
   ctx.flush(y);
   return y + lh;
 }
 
-function eventsOn(cal: Calendar, d: Day): CalEvent[] {
-  const n = dayNumber(d);
-  return cal.events
-    .filter((e) => dayNumber(e) === n)
-    .sort((a, b) => ORDER[a.type] - ORDER[b.type]);
-}
+const kindOf = (e: CalEvent): EventType | "other" => e.type ?? "other";
 
-function runnerColor(cal: Calendar, who?: string) {
-  return cal.runners.find((r) => r.name === who)?.color ?? COLOR.body;
-}
-
-function monthGrid(ctx: BodyContext, cal: Calendar, x: number, y: number, width: number): number {
+/** One month: name, weekday row and six rows of fixed-size day cells. `k` scales everything. */
+function month(ctx: BodyContext, cal: Calendar, which: { y: number; m: number }, x: number, y: number, width: number, k: number): number {
   const { u } = ctx;
-  const t = cal.today;
-  const colW = width / 7;
-  const cellGap = u(4);
-  const cellH = u(86);
-  const labelH = u(26);
-  WEEKDAYS.forEach((name, i) => {
-    ctx.line(name, x + i * colW + u(8), y, labelH, { font: "mono", size: u(13), color: COLOR.dim, spacing: 0.1 });
+  const s = (n: number) => u(n) * k;
+  const current = k === 1;
+  const titleH = s(34);
+  ctx.line(`${MONTHS[which.m - 1]} ${which.y}`, x, y, titleH, {
+    font: "bold", size: s(24), color: current ? COLOR.yellow : COLOR.white, spacing: 0.12, upper: true, maxWidth: width,
   });
-  ctx.flush(y);
+  y += titleH;
+  const colW = width / 7;
+  const labelH = s(22);
+  WEEKDAYS.forEach((name, i) => {
+    ctx.line(name, x + i * colW + s(6), y, labelH, { font: "mono", size: s(12), color: COLOR.dim, spacing: 0.1 });
+  });
+  ctx.flush(y - titleH);
   y += labelH;
 
-  const first: Day = { y: t.y, m: t.m, d: 1 };
-  const days = new Date(Date.UTC(t.y, t.m, 0)).getUTCDate();
-  const offset = weekday(first);
-  const weeks = Math.ceil((offset + days) / 7);
-  const todayN = dayNumber(t);
-  let top = y;
-  for (let w = 0; w < weeks; w++) {
-    const rowY = y + w * cellH;
-    if (ctx.pending() > 2500) {
-      ctx.flush(top);
-      top = rowY;
-    }
+  const cellGap = s(4);
+  const cellH = colW * 0.86;
+  const offset = weekday({ y: which.y, m: which.m, d: 1 });
+  const days = daysIn(which.y, which.m);
+  const todayN = dayNumber(cal.today);
+  for (let row = 0; row < ROWS; row++) {
+    const rowY = y + row * cellH;
     for (let i = 0; i < 7; i++) {
-      const d = w * 7 + i - offset + 1;
+      const d = row * 7 + i - offset + 1;
       if (d < 1 || d > days) continue;
-      const day: Day = { y: t.y, m: t.m, d };
-      const cx = x + i * colW;
-      const cw = colW - cellGap;
-      const ch = cellH - cellGap;
-      const n = dayNumber(day);
-      const isToday = n === todayN;
-      const past = n < todayN;
-      ctx.add("fill", COLOR.white, isToday ? 0.06 : 0.03, rect(cx, rowY, cw, ch));
-      if (isToday) ctx.add("text", COLOR.yellow, 1, rectRing(cx, rowY, cw, ch, u(3)));
-      ctx.line(String(d).padStart(2, "0"), cx + u(8), rowY + u(4), u(22), {
-        font: "mono", size: u(13), color: isToday ? COLOR.yellow : past ? COLOR.steel : COLOR.dim,
-      });
-      eventsOn(cal, day).slice(0, 2).forEach((e, k) => chip(ctx, cal, e, cx + u(6), rowY + u(28) + k * u(26), cw - u(12)));
+      const day: Day = { y: which.y, m: which.m, d };
+      cell(ctx, cal, day, x + i * colW, rowY, colW - cellGap, cellH - cellGap, k, dayNumber(day) - todayN);
     }
+    ctx.flush(rowY);
   }
-  ctx.flush(top);
-  return y + weeks * cellH;
+  return y + ROWS * cellH;
 }
 
-function chip(ctx: BodyContext, cal: Calendar, e: CalEvent, x: number, y: number, width: number) {
+function cell(ctx: BodyContext, cal: Calendar, day: Day, x: number, y: number, w: number, h: number, k: number, fromToday: number) {
   const { u } = ctx;
-  const h = u(22);
-  const style = { font: "regular" as const, size: u(14), maxWidth: width - u(12) };
-  const title = e.type === "downtime" && e.who ? `${e.who}: ${e.title}` : e.title;
-  switch (e.type) {
-    case "run":
-    case "deadline":
-    case "past": {
-      const bg = e.type === "run" ? COLOR.yellow : e.type === "deadline" ? COLOR.red : COLOR.grey;
-      ctx.add("fill", bg, e.type === "past" ? 0.45 : 1, rect(x, y, width, h));
-      ctx.line(title, x + u(6), y, h, { ...style, color: e.type === "deadline" ? COLOR.white : COLOR.black });
-      break;
+  const s = (n: number) => u(n) * k;
+  const today = fromToday === 0;
+  ctx.add("fill", COLOR.white, today ? 0.07 : 0.03, rect(x, y, w, h));
+  if (today) ctx.add("text", COLOR.yellow, 1, rectRing(x, y, w, h, s(3)));
+  const numH = s(22);
+  ctx.line(String(day.d).padStart(2, "0"), x + s(6), y + s(2), numH, {
+    font: "mono", size: s(13), color: today ? COLOR.yellow : fromToday < 0 ? COLOR.steel : COLOR.dim,
+  });
+
+  const n = dayNumber(day);
+  const events = cal.events
+    .filter((e) => dayNumber(e) === n)
+    .sort((a, b) => ORDER[kindOf(a)] - ORDER[kindOf(b)]);
+  const pad = s(5);
+  const font: FontKey = "regular";
+  const size = s(12.5);
+  const lh = size * 1.2;
+  const chipPad = s(2.5);
+  const innerW = w - 2 * pad - 2 * chipPad;
+  let cy = y + numH + s(2);
+  const bottom = y + h - pad;
+  for (let i = 0; i < events.length; i++) {
+    const e = events[i];
+    // A multi-day entry names itself on its first day and at the start of each week.
+    const named = !e.span || e.span[0] === 0 || weekday(e) === 0 || e.d === 1;
+    const lines = named ? wrap(ctx, e.title || " ", font, size, innerW) : [""];
+    const left = events.length - i - 1;
+    const room = bottom - cy;
+    const needed = lines.length * lh + 2 * chipPad;
+    // Keep one line for "+N" if more entries follow and this one doesn't fit.
+    if (needed > room - (left > 0 ? lh : 0)) {
+      const fit = Math.floor((room - 2 * chipPad - (left > 0 ? lh : 0)) / lh);
+      if (fit >= 1 && named) {
+        const cut = lines.slice(0, fit);
+        cut[fit - 1] = ellipsis(ctx, cut[fit - 1], font, size, innerW);
+        cy = chip(ctx, e, cut, x + pad, cy, w - 2 * pad, lh, chipPad, size, font);
+        if (left > 0) more(ctx, left, x + pad, cy, lh, s);
+      } else more(ctx, left + 1, x + pad, cy, lh, s);
+      return;
     }
-    case "meeting":
-      ctx.add("text", COLOR.cyan, 1, rectRing(x, y, width, h, u(1.5)));
-      ctx.line(title, x + u(6), y, h, { ...style, color: COLOR.cyan });
-      break;
-    case "downtime": {
-      const c = runnerColor(cal, e.who);
-      ctx.add("fill", c, 1, rect(x, y, u(3), h));
-      ctx.line(title, x + u(9), y, h, { ...style, color: COLOR.body });
-      break;
-    }
+    cy = chip(ctx, e, lines, x + pad, cy, w - 2 * pad, lh, chipPad, size, font) + s(2);
   }
 }
 
-function legend(ctx: BodyContext, cal: Calendar, x: number, y: number, width: number): number {
-  const { u } = ctx;
-  const h = u(20);
-  const s = u(10);
-  let cx = x;
-  const item = (label: string, draw: (bx: number, by: number) => void) => {
-    const w = ctx.measure(label.toUpperCase(), "mono", u(12), 0.12) + s + u(26);
-    if (cx + w > x + width) return;
-    draw(cx, y + (h - s) / 2);
-    ctx.line(label, cx + s + u(7), y, h, { font: "mono", size: u(12), color: COLOR.dim, spacing: 0.12, upper: true });
-    cx += w;
-  };
-  item("Run", (bx, by) => ctx.add("fill", COLOR.yellow, 1, rect(bx, by, s, s)));
-  item("Deadline", (bx, by) => ctx.add("fill", COLOR.red, 1, rect(bx, by, s, s)));
-  item("Treffen", (bx, by) => ctx.add("text", COLOR.cyan, 1, rectRing(bx, by, s, s, u(2))));
-  item("Vergangener Run", (bx, by) => ctx.add("fill", COLOR.grey, 0.45, rect(bx, by, s, s)));
-  for (const r of cal.runners) item(r.name, (bx, by) => ctx.add("fill", r.color, 1, rect(bx, by, s, s)));
-  ctx.flush(y);
+function more(ctx: BodyContext, count: number, x: number, y: number, lh: number, s: (n: number) => number) {
+  ctx.line(`+${count}`, x + s(2), y, lh, { font: "mono", size: s(11), color: COLOR.dim });
+}
+
+/** Text colour that reads on a filled chip of this colour. */
+function onFill(hex: string): string {
+  const v = parseInt(hex.slice(1), 16);
+  const lum = 0.2126 * ((v >> 16) & 255) + 0.7152 * ((v >> 8) & 255) + 0.0722 * (v & 255);
+  return lum > 140 ? COLOR.black : COLOR.white;
+}
+
+/** Draws one entry; returns its bottom. */
+function chip(ctx: BodyContext, e: CalEvent, lines: string[], x: number, y: number, w: number, lh: number, pad: number, size: number, font: FontKey) {
+  const h = lines.length * lh + 2 * pad;
+  let text: string = COLOR.body;
+  if (e.color || e.type === "run" || e.type === "deadline") {
+    const fill = e.color ?? (e.type === "run" ? COLOR.yellow : COLOR.red);
+    ctx.add("fill", fill, 1, rect(x, y, w, h));
+    text = e.type === "deadline" && !e.color ? COLOR.white : onFill(fill);
+  } else if (e.type === "past") {
+    ctx.add("fill", COLOR.grey, 0.45, rect(x, y, w, h));
+    text = COLOR.white;
+  } else if (e.type === "meeting") {
+    ctx.add("text", COLOR.cyan, 1, rectRing(x, y, w, h, Math.max(1, pad * 0.5)));
+    text = COLOR.cyan;
+  } else {
+    ctx.add("fill", COLOR.body, 1, rect(x, y, Math.max(1, pad), h));
+  }
+  lines.forEach((line, i) => {
+    if (line) ctx.line(line, x + pad * 2, y + pad + i * lh, lh, { font, size, color: text });
+  });
   return y + h;
 }
 
-function upcoming(ctx: BodyContext, cal: Calendar, x: number, y: number, width: number): number {
-  const { u } = ctx;
-  y = ctx.heading("Deadlines & Termine", 2, x, y, width) + u(8);
-  const todayN = dayNumber(cal.today);
-  const seen = new Set<string>();
-  const list = cal.events
-    .filter((e) => e.type !== "downtime" && e.type !== "past" && dayNumber(e) > todayN)
-    .filter((e) => {
-      const key = `${e.type}|${e.title}`;
-      if (seen.has(key)) return false; // multi-day entries show once, at their start
-      seen.add(key);
-      return true;
-    })
-    .sort((a, b) => dayNumber(a) - dayNumber(b))
-    .slice(0, 6);
-  if (!list.length) return emptyLine(ctx, "Keine anstehenden Termine", x, y, width);
-  const rowH = u(42);
-  const top = y;
-  for (const e of list) {
-    const c = TYPE_COLOR[e.type];
-    ctx.add("fill", COLOR.white, 0.03, rect(x, y, width, rowH - u(4)));
-    ctx.add("fill", c, 1, rect(x, y, u(3), rowH - u(4)));
-    const tw = ctx.line(`T-${dayNumber(e) - todayN}`, x + u(14), y, rowH - u(4), { font: "display", size: u(18), color: c });
-    const dateW = ctx.line(short(e), x + width - u(10), y, rowH - u(4), { font: "mono", size: u(13), color: COLOR.dim, align: "right" });
-    const tx = x + u(14) + Math.max(tw, u(70)) + u(14);
-    ctx.line(e.title, tx, y, rowH - u(4), {
-      font: "bold", size: u(19), color: COLOR.white, maxWidth: x + width - tx - dateW - u(20),
-    });
-    y += rowH;
-  }
-  ctx.flush(top);
-  return y;
-}
-
-function runLog(ctx: BodyContext, cal: Calendar, x: number, y: number, width: number): number {
-  const { u } = ctx;
-  y = ctx.heading("Run-Log", 2, x, y, width) + u(6);
-  const todayN = dayNumber(cal.today);
-  const list = cal.events
-    .filter((e) => (e.type === "run" || e.type === "past") && dayNumber(e) <= todayN)
-    .sort((a, b) => dayNumber(b) - dayNumber(a))
-    .slice(0, 8);
-  if (!list.length) return emptyLine(ctx, "Noch keine Runs", x, y, width);
-  const rowH = u(32);
-  const top = y;
-  for (const e of list) {
-    ctx.line(short(e), x, y, rowH, { font: "mono", size: u(13), color: COLOR.dim });
-    ctx.line(e.title, x + u(70), y, rowH, {
-      font: "regular", size: u(19), color: e.type === "past" ? COLOR.grey : COLOR.white, maxWidth: width - u(70),
-    });
-    y += rowH;
-  }
-  ctx.flush(top);
-  return y;
-}
-
-function downtime(ctx: BodyContext, cal: Calendar, x: number, y: number, width: number): number {
-  const { u } = ctx;
-  const todayN = dayNumber(cal.today);
-  const days = 37;
-  const startN = todayN - days + 1;
-  y = ctx.heading(`Downtime // ${short(fromNumber(startN))} – ${short(cal.today)}`, 2, x, y, width) + u(8);
-  if (!cal.runners.length) return emptyLine(ctx, "Runner: Name #farbe eintragen", x, y, width);
-
-  const nameW = Math.max(...cal.runners.map((r) => ctx.measure(r.name.toUpperCase(), "bold", u(17), 0.04))) + u(26);
-  const laneX = x + nameW;
-  const laneW = width - nameW;
-  const cell = laneW / days;
-  const rowH = u(26);
-  const lanesTop = y;
-  for (const r of cal.runners) {
-    ctx.add("fill", r.color, 1, rect(x, y + rowH / 2 - u(5), u(10), u(10)));
-    ctx.line(r.name, x + u(16), y, rowH, { font: "bold", size: u(17), color: COLOR.white, spacing: 0.04, upper: true });
-    const busy = new Set(cal.events.filter((e) => e.type === "downtime" && e.who === r.name).map((e) => dayNumber(e) - startN));
-    for (let i = 0; i < days; i++) {
-      const on = busy.has(i);
-      const cx = laneX + i * cell;
-      ctx.add("fill", on ? r.color : COLOR.white, on ? 1 : 0.05, rect(cx, y + u(4), cell - u(2), rowH - u(8)));
+/** Word wrap to `width`; words longer than a line are broken. */
+function wrap(ctx: BodyContext, text: string, font: FontKey, size: number, width: number): string[] {
+  const fits = (s: string) => ctx.measure(s, font, size) <= width;
+  const lines: string[] = [];
+  let line = "";
+  for (const word of text.split(/\s+/).filter(Boolean)) {
+    const tryLine = line ? `${line} ${word}` : word;
+    if (fits(tryLine)) {
+      line = tryLine;
+      continue;
     }
-    ctx.add("text", COLOR.yellow, 1, rectRing(laneX + (days - 1) * cell - u(1), y + u(2), cell + u(0), rowH - u(4), u(1.5)));
-    y += rowH;
+    if (line) lines.push(line);
+    line = "";
+    let rest = word;
+    while (!fits(rest)) {
+      let n = rest.length - 1;
+      while (n > 1 && !fits(rest.slice(0, n))) n--;
+      lines.push(rest.slice(0, n));
+      rest = rest.slice(n);
+    }
+    line = rest;
   }
-  const axisH = u(20);
-  ctx.line(short(fromNumber(startN)), laneX, y, axisH, { font: "mono", size: u(11), color: COLOR.dim });
-  ctx.line(short(fromNumber(startN + Math.floor(days / 2))), laneX + laneW / 2, y, axisH, { font: "mono", size: u(11), color: COLOR.dim, align: "center" });
-  ctx.line("Heute", laneX + laneW, y, axisH, { font: "mono", size: u(11), color: COLOR.yellow, align: "right", upper: true });
-  ctx.flush(lanesTop);
-  y += axisH + u(10);
-
-  // Downtime entries, one line per entry (ranges once), oldest first, the last 10.
-  const seen = new Set<string>();
-  const entries = cal.events
-    .filter((e) => e.type === "downtime" && dayNumber(e) <= todayN + 30)
-    .filter((e) => {
-      if (!e.span) return true;
-      const key = `${e.who}|${e.title}|${dayNumber(e) - e.span[0]}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
-    .sort((a, b) => dayNumber(a) - dayNumber(b))
-    .slice(-10);
-  const rowL = u(28);
-  const listTop = y;
-  for (const e of entries) {
-    const date = e.span && e.span[1] > 1 ? spanLabel(e) : short(e);
-    ctx.line(date, x, y, rowL, { font: "mono", size: u(13), color: COLOR.dim });
-    const c = runnerColor(cal, e.who);
-    ctx.add("fill", c, 1, rect(x + u(96), y + rowL / 2 - u(4), u(8), u(8)));
-    const nameW = e.who ? ctx.line(e.who, x + u(112), y, rowL, { font: "bold", size: u(17), color: COLOR.white }) : 0;
-    ctx.line(`${e.who ? " · " : ""}${e.title}`, x + u(112) + nameW, y, rowL, {
-      font: "regular", size: u(17), color: COLOR.body, maxWidth: width - u(92) - nameW,
-    });
-    y += rowL;
-  }
-  ctx.flush(listTop);
-  return y;
+  if (line || !lines.length) lines.push(line);
+  return lines;
 }
 
-/** "16.–17.04." for a range starting at e. */
-function spanLabel(e: CalEvent): string {
-  const end = fromNumber(dayNumber(e) + e.span![1] - 1);
-  return end.m === e.m ? `${String(e.d).padStart(2, "0")}.–${short(end)}` : `${short(e)}–${short(end)}`;
-}
-
-function emptyLine(ctx: BodyContext, text: string, x: number, y: number, width: number): number {
-  const h = ctx.u(28);
-  ctx.line(text, x, y, h, { font: "regular", size: ctx.u(17), color: COLOR.dim, maxWidth: width });
-  ctx.flush(y);
-  return y + h;
+function ellipsis(ctx: BodyContext, line: string, font: FontKey, size: number, width: number): string {
+  let s = line;
+  while (s && ctx.measure(`${s}…`, font, size) > width) s = s.slice(0, -1);
+  return `${s.trimEnd()}…`;
 }
 
 function errors(ctx: BodyContext, list: string[], x: number, y: number, width: number): number {
-  const h = ctx.u(22);
-  for (const e of list.slice(0, 5)) {
-    ctx.line(`! ${e}`, x, y, h, { font: "mono", size: ctx.u(12), color: COLOR.red, maxWidth: width });
-    y += h;
+  const { u } = ctx;
+  const top = y;
+  for (const e of list.slice(0, 8)) {
+    ctx.line(e, x, y, u(22), { font: "mono", size: u(13), color: COLOR.red, maxWidth: width });
+    y += u(22);
   }
-  ctx.flush(y - h * Math.min(5, list.length));
+  ctx.flush(top);
   return y;
 }

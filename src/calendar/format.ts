@@ -1,18 +1,18 @@
 /**
- * Calendar text format (one item per line, blank lines and `//` comments ignored):
+ * Calendar entries: one per line, comma-separated (blank lines and `//` comment lines ignored):
  *
- *   Today: 19.05.2077
- *   Note: Run-Tag 3 · 22:47
- *   Runner: Phlox #3fd87f
- *   24.05. deadline Deadline Ludis Studio
- *   16.04.-17.04. downtime Peppermint Reha
+ *   date, end date, title, type or colour
+ *   24.05.2077, , Deadline Ludis Studio, deadline
+ *   16.04., 17.04., Peppermint Reha, #a46cff
  *
- * Dates are dd.mm. or dd.mm.yyyy (the year defaults to today's year). A range
- * repeats the entry for every day. Types: run, deadline, meeting, past, downtime.
- * A downtime title starts with the runner's name.
+ * Dates are dd.mm.yyyy or dd.mm. (the year defaults to the current date's).
+ * The end date is optional (empty = one day). The last column is optional:
+ * a type (run, deadline, meeting, past) or a colour like #3fd87f.
+ * Write `\,` for a comma inside a title and `\\` for a backslash.
+ * The current date is not part of the text; it is its own field of the window.
  */
-export type EventType = "run" | "deadline" | "meeting" | "past" | "downtime";
-export const EVENT_TYPES: EventType[] = ["run", "deadline", "meeting", "past", "downtime"];
+export type EventType = "run" | "deadline" | "meeting" | "past";
+export const EVENT_TYPES: EventType[] = ["run", "deadline", "meeting", "past"];
 
 export interface Day {
   y: number;
@@ -21,28 +21,23 @@ export interface Day {
 }
 
 export interface CalEvent extends Day {
-  type: EventType;
   title: string;
-  /** Downtime only: the runner, if the title starts with a known runner name. */
-  who?: string;
-  /** Position in a multi-day range: 0-based index and length. */
+  /** A type's look, or a custom colour (filled chip); neither = plain chip. */
+  type?: EventType;
+  color?: string;
+  /** Position in a multi-day entry: 0-based index and length. */
   span?: [number, number];
-}
-
-export interface Runner {
-  name: string;
-  color: string;
 }
 
 export interface Calendar {
   today: Day;
-  note: string;
-  runners: Runner[];
   events: CalEvent[];
   errors: string[];
 }
 
-const DATE = /^(\d{1,2})\.(\d{1,2})\.(\d{4})?/;
+export const DEFAULT_TODAY = "01.01.2077";
+
+const DATE = /^(\d{1,2})\.(\d{1,2})\.(\d{4})?$/;
 
 export const dayNumber = (d: Day) => Math.round(Date.UTC(d.y, d.m - 1, d.d) / 86400000);
 export const fromNumber = (n: number): Day => {
@@ -51,109 +46,89 @@ export const fromNumber = (n: number): Day => {
 };
 /** 0 = Monday. */
 export const weekday = (d: Day) => (new Date(Date.UTC(d.y, d.m - 1, d.d)).getUTCDay() + 6) % 7;
+export const daysIn = (y: number, m: number) => new Date(Date.UTC(y, m, 0)).getUTCDate();
 export const pad = (n: number) => String(n).padStart(2, "0");
-export const short = (d: Day) => `${pad(d.d)}.${pad(d.m)}.`;
 export const full = (d: Day) => `${pad(d.d)}.${pad(d.m)}.${d.y}`;
 
-function parseDate(text: string, year: number): [Day, string] | null {
-  const m = DATE.exec(text);
+export function parseDate(text: string, year: number): Day | null {
+  const m = DATE.exec(text.trim());
   if (!m) return null;
   const day = { d: +m[1], m: +m[2], y: m[3] ? +m[3] : year };
-  if (day.m < 1 || day.m > 12 || day.d < 1 || day.d > 31) return null;
-  return [day, text.slice(m[0].length)];
+  if (day.m < 1 || day.m > 12 || day.d < 1 || day.d > daysIn(day.y, day.m)) return null;
+  return day;
 }
 
-export function parseCalendar(source: string): Calendar {
-  const lines = source.split("\n").map((l) => l.trim());
-  const cal: Calendar = { today: { y: 2077, m: 1, d: 1 }, note: "", runners: [], events: [], errors: [] };
-  // Today first, so dates without a year can use it.
-  for (const line of lines) {
-    const today = /^today:\s*(.+)$/i.exec(line);
-    if (today) {
-      const parsed = parseDate(today[1].trim(), cal.today.y);
-      if (parsed) cal.today = parsed[0];
-      else cal.errors.push(`Bad date: ${line}`);
-    }
+/** The window's current date; falls back to 01.01.2077. */
+export const parseToday = (text: string | undefined): Day => parseDate(text ?? "", 2077) ?? parseDate(DEFAULT_TODAY, 2077)!;
+
+/** The current date moved by `days`, as dd.mm.yyyy. */
+export const shiftDay = (text: string | undefined, days: number) => full(fromNumber(dayNumber(parseToday(text)) + days));
+
+/** Splits one line at unescaped commas; `\,` is a comma and `\\` a backslash. */
+export function splitLine(line: string): string[] {
+  const cells: string[] = [];
+  let cell = "";
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === "\\" && (line[i + 1] === "," || line[i + 1] === "\\")) cell += line[++i];
+    else if (c === ",") {
+      cells.push(cell.trim());
+      cell = "";
+    } else cell += c;
   }
-  for (const line of lines) {
-    if (!line || line.startsWith("//") || /^today:/i.test(line)) continue;
-    const note = /^note:\s*(.*)$/i.exec(line);
-    if (note) {
-      cal.note = note[1];
-      continue;
+  cells.push(cell.trim());
+  return cells;
+}
+
+export function parseCalendar(source: string, todayText?: string): Calendar {
+  const today = parseToday(todayText);
+  const cal: Calendar = { today, events: [], errors: [] };
+  source.split("\n").forEach((raw, i) => {
+    const line = raw.trim();
+    if (!line || line.startsWith("//")) return;
+    const [startText = "", endText = "", title = "", look = ""] = splitLine(line);
+    const where = `Line ${i + 1}`;
+    const from = parseDate(startText, today.y);
+    if (!from) {
+      cal.errors.push(`${where}: bad date "${startText}"`);
+      return;
     }
-    const runner = /^runner:\s*(.+?)\s+(#[0-9a-f]{6})\s*$/i.exec(line);
-    if (runner) {
-      cal.runners.push({ name: runner[1], color: runner[2] });
-      continue;
-    }
-    const start = parseDate(line, cal.today.y);
-    if (!start) {
-      cal.errors.push(`Not understood: ${line}`);
-      continue;
-    }
-    let [from, rest] = start;
     let to = from;
-    const range = /^\s*[-–]\s*/.exec(rest);
-    if (range) {
-      const end = parseDate(rest.slice(range[0].length), from.y);
-      if (end) [to, rest] = end;
-    }
-    const typed = /^\s+(\w+)\s+(.*)$/.exec(rest);
-    const type = typed?.[1].toLowerCase() as EventType | undefined;
-    if (!typed || !type || !EVENT_TYPES.includes(type)) {
-      cal.errors.push(`Unknown type: ${line}`);
-      continue;
-    }
-    let title = typed[2].trim();
-    let who: string | undefined;
-    if (type === "downtime") {
-      const r = cal.runners.find((x) => title.toLowerCase().startsWith(x.name.toLowerCase()));
-      if (r) {
-        who = r.name;
-        title = title.slice(r.name.length).replace(/^[\s:·,-]+/, "");
+    if (endText) {
+      const end = parseDate(endText, from.y);
+      if (!end) {
+        cal.errors.push(`${where}: bad end date "${endText}"`);
+        return;
       }
+      to = end;
+    }
+    let type: EventType | undefined;
+    let color: string | undefined;
+    if (look) {
+      if (/^#[0-9a-f]{6}$/i.test(look)) color = look;
+      else if (EVENT_TYPES.includes(look.toLowerCase() as EventType)) type = look.toLowerCase() as EventType;
+      else cal.errors.push(`${where}: unknown type "${look}" (run, deadline, meeting, past or #rrggbb)`);
     }
     const a = dayNumber(from);
     const b = Math.max(a, dayNumber(to));
     for (let n = a; n <= b && n - a < 366; n++) {
-      cal.events.push({ ...fromNumber(n), type, title, who, span: b > a ? [n - a, b - a + 1] : undefined });
+      cal.events.push({ ...fromNumber(n), title, type, color, span: b > a ? [n - a, b - a + 1] : undefined });
     }
-  }
+  });
   return cal;
 }
 
-/** Moves the Today line by `days`, keeping everything else as typed. */
-export function shiftToday(source: string, days: number): string {
-  const cal = parseCalendar(source);
-  const next = fromNumber(dayNumber(cal.today) + days);
-  const line = `Today: ${full(next)}`;
-  return /^\s*today:.*$/im.test(source) ? source.replace(/^\s*today:.*$/im, line) : `${line}\n${source}`;
-}
-
-export const SAMPLE_CALENDAR = `Today: 19.05.2077
-Note: Run-Tag 3 · Adventure Land
-Runner: Phlox #3fd87f
-Runner: Hawk #ff8a1f
-Runner: Peppermint #a46cff
-
-// Termine
-24.05. deadline Deadline Ludis Studio
-01.06. deadline Miete fällig
-26.06. meeting Adventure Land 2 Launch-Event
-20.04. meeting Treffen mit Abigale (Ice Palace)
-
-// Runs
-12.03. past Run: Bog Treasure Leak
-27.03. past Abschluss Bog Treasure
-17.05. run Run: Adventure Land Start
-18.05. run Betham Farming Gelände
-19.05. run Hinterhof NC-7
-
-// Downtime
-15.04. downtime Peppermint OP an der Hand
-16.04.-17.04. downtime Peppermint Reha
-21.04. downtime Hawk Drohne umbauen bei Trix
-08.05.-09.05. downtime Phlox Aqua Umbra brauen
-12.05. downtime Hawk Knöchel gebrochen
+export const SAMPLE_TODAY = "19.05.2077";
+export const SAMPLE_CALENDAR = `// date, end date, title, type or #colour
+12.03., , Run: Bog Treasure Leak, past
+20.04., , Treffen mit Abigale (Ice Palace), meeting
+08.05., 09.05., Phlox: Aqua Umbra brauen, #3fd87f
+12.05., , Hawk: Knöchel gebrochen, #ff8a1f
+17.05., , Run: Adventure Land Start, run
+18.05., , Betham Farming Gelände, run
+19.05., , Hinterhof NC-7, run
+24.05., , Deadline Ludis Studio, deadline
+01.06., , Miete fällig, deadline
+02.06., 04.06., Peppermint: Reha\\, Teil 2, #a46cff
+26.06., , Adventure Land 2 Launch-Event, meeting
 `;
