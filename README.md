@@ -74,3 +74,22 @@ npm run dev     # http://localhost:5175
 Add `http://localhost:5175/manifest.json` as an extension in a separate test room.
 `http://localhost:5175/preview.html` renders the generated outlines without OBR.
 `npm run build` type-checks and bundles into `dist/`.
+
+## Map markers (`src/map`)
+
+Location markers and runner pins, drawn as vector shapes. The GM client redraws them when
+something changes. "Map markers" tool in the toolbar (GM):
+
+- **Place location:** a symbol by kind (place, contact, corp, danger, home) with a name label.
+  The label is its own item attached to the symbol: drag it anywhere; it follows the symbol.
+  Right-click the symbol or the label, "Edit map marker": name (Enter = new line), kind, and
+  line alignment (Left / Centre / Right). A longer name grows away from the aligned edge. An
+  empty name removes the label; a deleted label comes back while the name is set.
+- **Place crew pins:** one pin per crew sheet that isn't on the map yet (handle, initials, colour).
+  **Place a single pin:** a free pin to rename and recolour.
+- **Fan-out:** pins whose heads would overlap are drawn side by side, each pointer still ending at
+  its own pin's position. Drag one away and it is a single pin again (redrawn about a second after
+  the drop; only while the GM is in the room).
+- **Size:** "Map marker size" slider in the extension's popover (GM).
+- **Layers:** pins are on Character (players can move them), locations and labels on Prop.
+
