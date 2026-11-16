@@ -14,7 +14,7 @@ test("csv lines: date, optional end date, title, optional colour and style", () 
   const cal = parseCalendar("24.05., , Deadline Ludis, red\n16.04.2077, 17.04., Reha, Peppermint, line\n01.06.,,Miete\n02.06., , X, #abc, outline", "19.05.2077", { Peppermint: "#a46cff" });
   assert.deepEqual(cal.errors, []);
   assert.equal(cal.events.length, 5);
-  assert.deepEqual(cal.events[0], { y: 2077, m: 5, d: 24, title: "Deadline Ludis", color: "#ff2848", style: "box", past: false, span: undefined });
+  assert.deepEqual(cal.events[0], { y: 2077, m: 5, d: 24, title: "Deadline Ludis", color: "#ff2848", style: "box", past: false, span: undefined, entry: 0 });
   assert.deepEqual(cal.events[1].span, [0, 2]);
   assert.equal(cal.events[2].color, "#a46cff");
   assert.equal(cal.events[2].style, "line");

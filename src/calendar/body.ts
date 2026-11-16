@@ -1,6 +1,6 @@
 import type { BodyContext } from "../core/body";
 import type { FontKey } from "../core/fonts";
-import { rect, rectRing } from "../core/geometry";
+import { polygon, Pt, rect, rectRing } from "../core/geometry";
 import { COLOR } from "../core/style";
 import type { WindowSpec } from "../windows/layout";
 import { CalEvent, Calendar, Day, dayNumber, daysIn, parseCalendar, weekday } from "./format";
@@ -75,64 +75,201 @@ function month(ctx: BodyContext, cal: Calendar, which: { y: number; m: number },
   const cellH = colW * 0.86;
   const offset = weekday({ y: which.y, m: which.m, d: 1 });
   const days = daysIn(which.y, which.m);
-  const todayN = dayNumber(cal.today);
   for (let row = 0; row < ROWS; row++) {
     const rowY = y + row * cellH;
-    for (let i = 0; i < 7; i++) {
+    const week = Array.from({ length: 7 }, (_, i): Day | null => {
       const d = row * 7 + i - offset + 1;
-      if (d < 1 || d > days) continue;
-      const day: Day = { y: which.y, m: which.m, d };
-      cell(ctx, cal, day, x + i * colW, rowY, colW - cellGap, cellH - cellGap, dayNumber(day) - todayN);
-    }
+      return d >= 1 && d <= days ? { y: which.y, m: which.m, d } : null;
+    });
+    if (week.some(Boolean)) weekRow(ctx, cal, week, x, rowY, colW, colW - cellGap, cellH - cellGap);
     ctx.flush(rowY);
   }
   return y + ROWS * cellH;
 }
 
-function cell(ctx: BodyContext, cal: Calendar, day: Day, x: number, y: number, w: number, h: number, fromToday: number) {
-  const { u } = ctx;
-  const s = u;
-  const today = fromToday === 0;
-  // A clear tile per day: a light fill and a thin frame (today: yellow, thicker).
-  ctx.add("fill", COLOR.white, today ? 0.09 : 0.06, rect(x, y, w, h));
-  if (today) ctx.add("text", COLOR.yellow, 1, rectRing(x, y, w, h, s(3)));
-  else ctx.add("fill", COLOR.white, 0.16, rectRing(x, y, w, h, s(1)));
-  const numH = s(22);
-  ctx.line(String(day.d).padStart(2, "0"), x + s(6), y + s(2), numH, {
-    font: "mono", size: s(13), color: today ? COLOR.yellow : COLOR.body,
+/** Sizes inside a day cell, in scene units. */
+function cellMetrics(ctx: BodyContext) {
+  const s = ctx.u;
+  const size = s(12.5);
+  return {
+    numH: s(22),
+    pad: s(5),
+    font: "regular" as FontKey,
+    size,
+    lh: size * 1.2,
+    chipPad: s(2.5),
+    gap: s(2),
+    /** Arrow tip length where a multi-day entry goes on past a Sunday or the month's end. */
+    tip: s(9),
+    /** Line style: thickness of the line and height of its arrow head. */
+    lineW: s(2.5),
+    headH: s(9),
+  };
+}
+
+/** A multi-day entry's part within one week row of one month. */
+interface Segment {
+  e: CalEvent;
+  /** First and last column. */
+  a: number;
+  b: number;
+  /** Carries the title: the entry's first part, or its first part in this month. */
+  named: boolean;
+  /** The entry goes on after this part (arrow tip). */
+  continues: boolean;
+}
+
+/**
+ * One week of a month: day tiles, then multi-day entries as continuous parts
+ * on top (each placed as high as the days it covers allow), then single-day
+ * entries below them in each cell. The cells never grow; what doesn't fit
+ * becomes "+N".
+ */
+function weekRow(ctx: BodyContext, cal: Calendar, week: (Day | null)[], x: number, y: number, colW: number, w: number, h: number) {
+  const s = ctx.u;
+  const m = cellMetrics(ctx);
+  const todayN = dayNumber(cal.today);
+  const colX = (i: number) => x + i * colW;
+
+  const byCol = week.map((day) => (day ? cal.events.filter((e) => dayNumber(e) === dayNumber(day)) : []));
+  week.forEach((day, i) => {
+    if (!day) return;
+    const n = dayNumber(day);
+    // Past days keep the plain tile; today and later are a little brighter.
+    ctx.add("fill", COLOR.white, n < todayN ? 0.05 : 0.09, rect(colX(i), y, w, h));
+    if (n === todayN) ctx.add("text", COLOR.yellow, 1, rectRing(colX(i), y, w, h, s(3)));
+    ctx.line(String(day.d).padStart(2, "0"), colX(i) + s(6), y + s(2), m.numH, {
+      font: "mono", size: s(13), color: n === todayN ? COLOR.yellow : COLOR.body,
+    });
   });
 
-  const n = dayNumber(day);
-  const events = cal.events.filter((e) => dayNumber(e) === n);
-  const pad = s(5);
-  const font: FontKey = "regular";
-  const size = s(12.5);
-  const lh = size * 1.2;
-  const chipPad = s(2.5);
-  const innerW = w - 2 * pad - 2 * chipPad;
-  let cy = y + numH + s(2);
-  const bottom = y + h - pad;
-  for (let i = 0; i < events.length; i++) {
-    const e = events[i];
-    // A multi-day entry names itself on its first day and at the start of each week.
-    const named = !e.span || e.span[0] === 0 || weekday(e) === 0 || e.d === 1;
-    const lines = named ? wrap(ctx, e.title || " ", font, size, innerW) : [""];
-    const left = events.length - i - 1;
-    const room = bottom - cy;
-    const needed = lines.length * lh + 2 * chipPad;
-    // Keep one line for "+N" if more entries follow and this one doesn't fit.
-    if (needed > room - (left > 0 ? lh : 0)) {
-      const fit = Math.floor((room - 2 * chipPad - (left > 0 ? lh : 0)) / lh);
-      if (fit >= 1 && named) {
-        const cut = lines.slice(0, fit);
-        cut[fit - 1] = ellipsis(ctx, cut[fit - 1], font, size, innerW);
-        cy = chip(ctx, e, cut, x + pad, cy, w - 2 * pad, lh, chipPad, size, font);
-        if (left > 0) more(ctx, left, x + pad, cy, lh, s);
-      } else more(ctx, left + 1, x + pad, cy, lh, s);
-      return;
+  // Multi-day parts in this row, in order of their first day (longer first).
+  const segments: Segment[] = [];
+  byCol.forEach((events, i) => {
+    for (const e of events.filter((ev) => ev.span)) {
+      const seg = segments.find((sg) => sg.e.entry === e.entry && sg.b === i - 1);
+      const last = e.span![0] === e.span![1] - 1;
+      if (seg) {
+        seg.b = i;
+        seg.continues = !last;
+      } else {
+        segments.push({ e, a: i, b: i, named: e.span![0] === 0 || week[i]!.d === 1, continues: !last });
+      }
     }
-    cy = chip(ctx, e, lines, x + pad, cy, w - 2 * pad, lh, chipPad, size, font) + s(2);
+  });
+  segments.sort((p, q) => p.a - q.a || q.b - q.a - (p.b - p.a));
+
+  const top = y + m.numH + m.gap;
+  const bottom = y + h - m.pad;
+  const sky = Array(7).fill(top);
+  const hidden = Array(7).fill(0);
+  for (const seg of segments) {
+    const cols = [...Array(seg.b - seg.a + 1).keys()].map((k) => seg.a + k);
+    const sy = Math.max(...cols.map((c) => sky[c]));
+    const left = colX(seg.a) + m.pad;
+    const right = colX(seg.b) + w - m.pad;
+    const textW = right - left - 4 * m.chipPad - (seg.continues ? m.tip : 0);
+    let lines = seg.named ? wrap(ctx, seg.e.title || " ", m.font, m.size, textW) : [];
+    const heightOf = (n: number) => spanHeight(seg.e, n, m);
+    const room = bottom - sy;
+    if (heightOf(lines.length) > room) {
+      let fit = lines.length;
+      while (fit > 0 && heightOf(fit) > room) fit--;
+      if (fit === 0 && heightOf(0) > room) {
+        for (const c of cols) hidden[c]++;
+        continue;
+      }
+      lines = lines.slice(0, fit);
+      if (fit > 0) lines[fit - 1] = ellipsis(ctx, lines[fit - 1], m.font, m.size, textW);
+    }
+    const end = drawSpan(ctx, seg.e, lines, left, sy, right - left, seg.continues, m);
+    for (const c of cols) sky[c] = end + m.gap;
   }
+
+  // Single-day entries below, per cell.
+  byCol.forEach((events, i) => {
+    if (!week[i]) return;
+    const singles = events.filter((e) => !e.span);
+    let cy = sky[i];
+    const cx = colX(i) + m.pad;
+    const cw = w - 2 * m.pad;
+    const innerW = cw - 2 * m.chipPad;
+    for (let k = 0; k < singles.length; k++) {
+      const e = singles[k];
+      const lines = wrap(ctx, e.title || " ", m.font, m.size, innerW);
+      const left = singles.length - k - 1 + hidden[i];
+      const room = bottom - cy;
+      const needed = lines.length * m.lh + 2 * m.chipPad;
+      // Keep one line for "+N" if more entries follow and this one doesn't fit.
+      if (needed > room - (left > 0 ? m.lh : 0)) {
+        const fit = Math.floor((room - 2 * m.chipPad - (left > 0 ? m.lh : 0)) / m.lh);
+        if (fit >= 1) {
+          const cut = lines.slice(0, fit);
+          cut[fit - 1] = ellipsis(ctx, cut[fit - 1], m.font, m.size, innerW);
+          cy = chip(ctx, e, cut, cx, cy, cw, m.lh, m.chipPad, m.size, m.font);
+          if (left > 0) more(ctx, left, cx, cy, m.lh, s);
+        } else more(ctx, left + 1, cx, cy, m.lh, s);
+        return;
+      }
+      cy = chip(ctx, e, lines, cx, cy, cw, m.lh, m.chipPad, m.size, m.font) + m.gap;
+    }
+    if (hidden[i] > 0 && bottom - cy >= m.lh) more(ctx, hidden[i], cx, cy, m.lh, s);
+  });
+}
+
+/** Height of a multi-day part with `lines` lines of title (0 = no title). */
+function spanHeight(e: CalEvent, lines: number, m: ReturnType<typeof cellMetrics>) {
+  if (e.style === "line") return m.headH + (lines ? m.gap + lines * m.lh : 0);
+  return Math.max(1, lines) * m.lh + 2 * m.chipPad;
+}
+
+/** A rectangle whose right end is an arrow tip (or square when `tip` is 0). */
+function arrowBox(x: number, y: number, w: number, h: number, tip: number): Pt[] {
+  const r = x + w;
+  return tip > 0
+    ? [[x, y], [r - tip, y], [r, y + h / 2], [r - tip, y + h], [x, y + h]]
+    : [[x, y], [r, y], [r, y + h], [x, y + h]];
+}
+
+/** Draws one multi-day part in its style; returns its bottom. */
+function drawSpan(ctx: BodyContext, e: CalEvent, lines: string[], x: number, y: number, w: number, continues: boolean, m: ReturnType<typeof cellMetrics>) {
+  const color = e.past ? PAST.color : e.color;
+  const h = spanHeight(e, lines.length, m);
+  const tip = continues ? Math.min(m.tip, h / 2) : 0;
+  let text = color;
+  let textY = y + m.chipPad;
+  switch (e.style) {
+    case "box":
+      ctx.add("fill", color, e.past ? PAST.fill : 1, polygon(arrowBox(x, y, w, h, tip)));
+      text = e.past ? COLOR.white : onFill(color);
+      break;
+    case "outline": {
+      const t = Math.max(1, m.chipPad * 0.5);
+      const inner = arrowBox(x + t, y + t, w - 2 * t - (tip ? t * 0.6 : 0), h - 2 * t, tip ? Math.max(0, tip - t) : 0);
+      ctx.add("text", color, 1, [...polygon(arrowBox(x, y, w, h, tip)), ...polygon(inner.reverse())]);
+      break;
+    }
+    case "line": {
+      // The line runs above the title, ending in an arrow head if the entry goes on.
+      const bar = y + (m.headH - m.lineW) / 2;
+      const r = x + w;
+      const head = continues ? m.tip : 0;
+      const pts: Pt[] = head
+        ? [[x, bar], [r - head, bar], [r - head, y], [r, y + m.headH / 2], [r - head, y + m.headH], [r - head, bar + m.lineW], [x, bar + m.lineW]]
+        : [[x, bar], [r, bar], [r, bar + m.lineW], [x, bar + m.lineW]];
+      ctx.add("fill", color, 1, polygon(pts));
+      text = e.past ? COLOR.grey : COLOR.body;
+      textY = y + m.headH + m.gap;
+      break;
+    }
+    case "text":
+      break;
+  }
+  const textX = e.style === "line" ? x : x + m.chipPad * 2;
+  lines.forEach((line, i) => {
+    if (line) ctx.line(line, textX, textY + i * m.lh, m.lh, { font: m.font, size: m.size, color: text });
+  });
+  return y + h;
 }
 
 function more(ctx: BodyContext, count: number, x: number, y: number, lh: number, s: (n: number) => number) {

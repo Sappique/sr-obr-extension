@@ -33,6 +33,8 @@ export interface CalEvent extends Day {
   past: boolean;
   /** Position in a multi-day entry: 0-based index and length. */
   span?: [number, number];
+  /** Which line the entry came from (the days of one entry share it). */
+  entry: number;
 }
 
 export interface Calendar {
@@ -126,7 +128,7 @@ export function parseCalendar(source: string, todayText?: string, runners: Recor
     const b = Math.max(a, dayNumber(to));
     const past = b < todayN;
     for (let n = a; n <= b && n - a < 366; n++) {
-      cal.events.push({ ...fromNumber(n), title, color, style, past, span: b > a ? [n - a, b - a + 1] : undefined });
+      cal.events.push({ ...fromNumber(n), title, color, style, past, span: b > a ? [n - a, b - a + 1] : undefined, entry: i });
     }
   });
   return cal;
@@ -136,10 +138,11 @@ export const SAMPLE_TODAY = "19.05.2077";
 export const SAMPLE_CALENDAR = `// date, end date, title, colour, style
 12.03., , Run: Bog Treasure Leak
 20.04., , Treffen mit Abigale (Ice Palace), cyan, outline
-08.05., 09.05., Aqua Umbra brauen, Phlox, line
+08.05., 11.05., Aqua Umbra brauen, Phlox, line
 12.05., , Knöchel gebrochen, Hawk, line
 17.05., , Run: Adventure Land Start
 18.05., 20.05., Betham Farming Gelände
+21.05., 25.05., Konferenz in Seattle (Ludis Studio), cyan
 24.05., , Deadline Ludis Studio, red
 01.06., , Miete fällig, red, text
 02.06., 04.06., Reha\\, Teil 2, Peppermint, line
