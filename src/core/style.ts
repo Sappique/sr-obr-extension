@@ -11,8 +11,6 @@ export const COLOR = {
   body: "#c9d3d8",
   dim: "#74828a",
   red: "#ff2848",
-  grey: "#8a96a0",
-  steel: "#3a434b",
 };
 
 /** Runner identity colours (HANDOFF). */

@@ -24,7 +24,8 @@ A window is a frame (a Curve) plus derived parts attached to it. The source live
 frame's metadata (`sappique.sr-obr/window`); only the GM client generates parts.
 
 - **Create:** window tool in the toolbar (GM), click to place.
-- **Edit:** right-click a window; the fields are in the context menu.
+- **Edit:** right-click a window; the fields are in the context menu. The big text field applies
+  when you leave it (or Ctrl/Cmd+Enter), not on every keystroke.
 - **Size of everything:** the extension icon at the top opens the window scale (GM only; scene metadata, applied on slider release).
 - **Width:** drag a resize handle. Height follows the content.
 - **Connect:** select two windows, context menu "Connect". Again on the same pair removes it.
@@ -44,6 +45,26 @@ Callouts (add types in `src/core/callouts.ts`):
 > [!Reward] 6.000 ¥ / P
 > Normal Markdown body.
 ```
+
+## Calendar (`src/calendar`)
+
+A window kind: same frame, shadow, resize, scale, links and visibility as any window, with its
+own body. Window tool → "Place calendar".
+
+- **Shows** the current date large, then the month before, the current month and the month after,
+  all the same size. Day cells have a fixed size (six rows per month); titles wrap inside them and
+  what doesn't fit becomes "+N". Multi-day entries are one element per week, with an arrow tip
+  where they go on past a Sunday or the month's end; only their first part carries the title.
+- **Current date:** its own field in "Edit window", with −1 / +1 buttons (`today` in the window spec).
+- **Entries:** CSV, one per line: `date, end date, title, colour, style`
+  - dates `dd.mm.yyyy` or `dd.mm.` (year of the current date); end date empty = one day;
+  - colour: a runner's name (from the crew sheets, live), a colour name (`yellow`, `cyan`, `red`, …
+    first from our palette, then any CSS name) or `#rrggbb`; empty = yellow;
+  - style: `box` (default), `line` (a bar; above the title on multi-day entries) or `text`;
+  - `\,` is a comma in a title, `\\` a backslash; `//` lines are comments; bad lines are listed in red.
+- **Past entries** (all days before the current date) keep their colour but are drawn lighter: a
+  box becomes an outline, a line gets thinner, text uses Rajdhani Light.
+- **Preview** without OBR: `http://localhost:5175/kinds.html` (dev server).
 
 ## Crew sheets (`src/sheets`)
 

@@ -409,7 +409,6 @@ function createTool() {
     defaultMode: MODE_ID,
   });
   // One placement mode per window kind; each starts with sample content.
-  // Feed and influence charts come later; their kinds are only placeholders.
   const modes: [WindowKind, string, string][] = [
     ["markdown", MODE_ID, "window"],
     ["calendar", `${ID}/calendar-place`, "calendar"],

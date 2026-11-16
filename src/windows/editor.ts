@@ -11,7 +11,6 @@ const title = get<HTMLInputElement>("title");
 const tag = get<HTMLInputElement>("tag");
 const variant = get<HTMLSelectElement>("variant");
 const markdown = get<HTMLTextAreaElement>("markdown");
-const tools = get<HTMLDivElement>("tools");
 const textLabel = get<HTMLSpanElement>("textLabel");
 const help = get<HTMLPreElement>("help");
 const todayRow = get<HTMLDivElement>("todayRow");
@@ -25,18 +24,6 @@ function showKind(next: WindowKind) {
   textLabel.textContent = editor.label;
   todayRow.hidden = kind !== "calendar";
   help.textContent = editor.help;
-  tools.replaceChildren(
-    ...editor.actions.map((action) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.textContent = action.label;
-      button.addEventListener("click", () => {
-        markdown.value = action.apply(markdown.value);
-        save();
-      });
-      return button;
-    }),
-  );
 }
 
 let frameId: string | null = null;

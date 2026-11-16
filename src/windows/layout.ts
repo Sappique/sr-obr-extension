@@ -25,7 +25,7 @@ import { baselineOffset, drawText, measureText } from "../core/vectorText";
  */
 /** What the body shows. "markdown" is the plain text window; the others parse
  * the same text field with their own line format (see src/<kind>/format.ts). */
-export type WindowKind = "markdown" | "calendar" | "feed" | "influence";
+export type WindowKind = "markdown" | "calendar";
 
 export interface WindowSpec {
   title: string;
@@ -62,8 +62,6 @@ const MAX_COMMANDS_PER_PART = 3000;
 type BodyRenderer = (ctx: BodyContext, spec: WindowSpec, x: number, y: number, width: number) => number;
 const BODIES: Record<Exclude<WindowKind, "markdown">, BodyRenderer> = {
   calendar: calendarBody,
-  feed: (ctx, spec, x, y, width) => ctx.markdown(spec.markdown, x, y, width),
-  influence: (ctx, spec, x, y, width) => ctx.markdown(spec.markdown, x, y, width),
 };
 
 export function hashString(text: string): string {

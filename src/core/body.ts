@@ -6,8 +6,7 @@ import { SCALE, WindowTokens } from "./style";
 import { baselineOffset, drawText, measureText } from "./vectorText";
 
 /**
- * Drawing kit for window bodies other than plain Markdown (calendar, feed,
- * influence chart). Everything is vector outlines, collected into parts by
+ * Drawing kit for window bodies other than plain Markdown (the calendar). Everything is vector outlines, collected into parts by
  * colour; call flush(top) at row or section boundaries so edits only resend
  * the rows that changed.
  */
