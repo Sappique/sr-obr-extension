@@ -29,3 +29,4 @@ pre { margin: 4px 0 0; white-space: pre-wrap; font: 11px/1.35 monospace; color: 
 .today button { flex: 0 0 38px; color: #e3e9ec; background: rgba(7, 8, 12, .75); border: 1px solid #3a434b; font: 600 13px system-ui, sans-serif; cursor: pointer; }
 .today button:hover { border-color: #f5e10a; }
 [hidden] { display: none !important; }
+.hint { color: #74828a; font-size: 10px; }
