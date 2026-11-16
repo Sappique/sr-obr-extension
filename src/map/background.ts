@@ -6,7 +6,7 @@ import { buildLocation, LABEL_GAP } from "./create";
 import { applyShape, buildLabel, buildPart, buildPin, SYMBOL_PARTS } from "./items";
 import { labelLayout, pinLayout, symbolLayout } from "./layout";
 import {
-  ID, isMapBase, LABEL_KEY, LabelMeta, MAP_HASH_KEY, MAP_ROLE_KEY, MAP_SPEC_KEY, mapRole, iconUnit, labelSide, labelUnitOf, LABEL_SNAP_KEY, newPin, newPlace,
+  ID, isMapBase, LABEL_KEY, LabelMeta, MAP_HASH_KEY, MAP_ROLE_KEY, MAP_SPEC_KEY, mapRole, iconUnit, markerUnit, labelSide, labelUnitOf, LABEL_SNAP_KEY, newPin, newPlace,
   CrewInfo, livePin, livePlace, PART_KEY, PartName, PinSpec, readLabelScale, readMapScale, readMapSpec,
 } from "./model";
 
@@ -30,6 +30,8 @@ let lastLocked = new Map<string, boolean>();
 /** Same for visibility: hiding or showing either the icon or its label does it to both. */
 let lastVisible = new Map<string, boolean>();
 const unit = () => iconUnit(gridDpi, mapScale);
+/** Pins keep their first size at 100 % (no ICON_BASE), but follow the same icon slider. */
+const pinUnit = () => markerUnit(gridDpi, mapScale);
 const labelUnit = () => labelUnitOf(gridDpi, labelScale);
 
 // ---------------------------------------------------------------------------
@@ -119,7 +121,8 @@ async function sync(items: Item[]): Promise<boolean> {
   const crew = crewOf(items);
   const nextLocked = new Map<string, boolean>();
   const nextVisible = new Map<string, boolean>();
-  const pins = planPins(pinTips(items, crew), u);
+  const pu = pinUnit();
+  const pins = planPins(pinTips(items, crew), pu);
   let fonts: Fonts | null = null;
 
   /** Redraws a part, or recreates it if it went missing. */
@@ -145,7 +148,7 @@ async function sync(items: Item[]): Promise<boolean> {
       const { spot, slot } = pins.get(base.id) ?? { spot: base.position, slot: LONE_SLOT };
       // Moving the pin carries its initials along.
       if (spot.x !== base.position.x || spot.y !== base.position.y) edit(base.id, (d) => (d.position = spot));
-      const layout = pinLayout(fonts, spec, u, slot);
+      const layout = pinLayout(fonts, spec, pu, slot);
       const initials = partOf(base.id, "initials");
       if (base.metadata[MAP_HASH_KEY] !== layout.hash || !initials) {
         edit(base.id, (d) => {
@@ -262,7 +265,7 @@ async function placeLocation(position: Vector2): Promise<Item[]> {
 /** Pins for the given specs around one point, already fanned out together. */
 async function placePins(specs: PinSpec[], at: Vector2): Promise<Item[]> {
   const fonts = await loadFonts();
-  const u = unit();
+  const u = pinUnit();
   const spot = { x: at.x, y: at.y };
   const slots = groupSlots(specs.length);
   return specs.flatMap((spec, i) => buildPin(spec, spot, pinLayout(fonts, spec, u, slots[i])));

@@ -102,7 +102,7 @@ something changes. "Map markers" tool in the toolbar (GM):
   after the drop; only while the GM is in the room). Drag one further away to take it out.
 - **Sizes:** "Marker icon size" (location icons and pins) and "Marker text size" (location labels:
   plate, bar and text) in the extension's popover (GM). 100 % is half the drawing's design size for
-  icons and 65 % for labels. A label's distance from its icon scales with
+  location icons, 65 % for labels and the full size for pins (pins also follow the icon slider). A label's distance from its icon scales with
   the text size.
 - **Add locations…** (same popover, GM): paste JSON or text, and the locations are added below each
   other in the middle of the view, ready to be placed. JSON is an array of
