@@ -1,5 +1,6 @@
 import OBR, { Curve, Item, Path, Vector2 } from "@owlbear-rodeo/sdk";
 import { Fonts, loadFonts } from "../core/fonts";
+import { migrateOnSceneReady } from "../core/migrate";
 import { Box, legacyHubIsA, outlineMatches, routeLinks, windowOutline } from "../core/geometry";
 import { UI_SCALE, windowTokens } from "../core/style";
 import {
@@ -526,6 +527,8 @@ function refreshReverseMenu() {
 }
 
 OBR.onReady(async () => {
+  // Data from before the namespace change moves over once per scene (GM only).
+  void migrateOnSceneReady();
   isGm = (await OBR.player.getRole()) === "GM";
   selection = (await OBR.player.getSelection()) ?? [];
   OBR.player.onChange((player) => {
