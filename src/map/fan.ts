@@ -159,11 +159,12 @@ export function groupSlots(n: number, style: GroupStyle): PinSlot[] {
     });
   }
   if (style.startsWith("column")) {
-    // Heads stacked upwards; the bottom one carries the pointer.
+    // One box of heads stacked upwards: the top one has the cut corner, the
+    // bottom one carries the pointer.
     const { w, h, text } = STRIPS[style];
     return idx.map((i) => {
-      const top = -h - stem - (n - 1 - i) * (h + 3);
-      return { outline: head(-w / 2, top, w, h, true, i === n - 1 ? full(0) : null), hx: 0, top, h, text };
+      const top = -h - stem - (n - 1 - i) * h;
+      return { outline: head(-w / 2, top, w, h, i === 0, i === n - 1 ? full(0) : null), hx: 0, top, h, text };
     });
   }
   if (style === "fan") {
