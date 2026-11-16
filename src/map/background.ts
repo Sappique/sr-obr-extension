@@ -1,12 +1,12 @@
 import OBR, { Item, Path, Vector2 } from "@owlbear-rodeo/sdk";
 import { Fonts, loadFonts } from "../core/fonts";
 import { toEntries } from "../sheets/backend";
-import { defaultAnchor, fanSlots, LONE_SLOT, moveAnchor, PinTip } from "./fan";
+import { defaultAnchor, GroupStyle, groupSlots, groupTips, LONE_SLOT, moveAnchor, pickSpot, PinSlot, PinTip } from "./fan";
 import { applyShape, buildLabel, buildPart, buildPin, buildSymbol } from "./items";
 import { labelLayout, pinLayout, symbolShape } from "./layout";
 import {
   ID, isMapBase, LABEL_KEY, LabelMeta, MAP_HASH_KEY, MAP_ROLE_KEY, mapRole, markerUnit, newPin, newPlace,
-  PART_KEY, PartName, PinSpec, readMapScale, readMapSpec,
+  PART_KEY, PartName, PinSpec, readMapScale, readMapSpec, readPinStyle,
 } from "./model";
 
 /**
@@ -21,6 +21,9 @@ const MAX_PASSES = 4;
 let isGm = false;
 let mapScale = 1;
 let gridDpi = 150;
+let pinStyle: GroupStyle = readPinStyle({});
+/** Pin positions after the last sync, to tell which pin was just moved. */
+let lastTips = new Map<string, Vector2>();
 const unit = () => markerUnit(gridDpi, mapScale);
 
 // ---------------------------------------------------------------------------
@@ -55,10 +58,24 @@ async function drain() {
 
 type Edit = (draft: Item) => void;
 
+const rankOf = (spec: PinSpec) => `${String(spec.order ?? 9999).padStart(5, "0")}|${spec.name}`;
+
 const pinTips = (items: Item[]): PinTip[] =>
-  items
-    .filter((i) => isMapBase(i) && readMapSpec(i)?.type === "pin")
-    .map((i) => ({ id: i.id, x: i.position.x, y: i.position.y }));
+  items.flatMap((i) => {
+    const spec = isMapBase(i) ? readMapSpec(i) : undefined;
+    return spec?.type === "pin" ? [{ id: i.id, x: i.position.x, y: i.position.y, rank: rankOf(spec) }] : [];
+  });
+
+/** Where every pin stands and how it is drawn: pins on one spot snap together. */
+function planPins(tips: PinTip[], u: number) {
+  const plan = new Map<string, { spot: Vector2; slot: PinSlot }>();
+  for (const group of groupTips(tips, u)) {
+    const spot = group.length > 1 ? pickSpot(group, lastTips) : { x: group[0].x, y: group[0].y };
+    const slots = groupSlots(group.length, pinStyle);
+    group.forEach((tip, i) => plan.set(tip.id, { spot, slot: slots[i] }));
+  }
+  return plan;
+}
 
 async function sync(items: Item[]): Promise<boolean> {
   const byId = new Map(items.map((i) => [i.id, i]));
@@ -79,7 +96,7 @@ async function sync(items: Item[]): Promise<boolean> {
   const add: Item[] = [];
   const remove: string[] = [];
   const u = unit();
-  const slots = fanSlots(pinTips(items), u);
+  const pins = planPins(pinTips(items), u);
   let fonts: Fonts | null = null;
 
   /** Redraws a part, or recreates it if it went missing. */
@@ -98,7 +115,10 @@ async function sync(items: Item[]): Promise<boolean> {
     fonts ??= await loadFonts();
 
     if (spec.type === "pin") {
-      const layout = pinLayout(fonts, spec, u, slots.get(base.id) ?? LONE_SLOT);
+      const { spot, slot } = pins.get(base.id) ?? { spot: base.position, slot: LONE_SLOT };
+      // Moving the pin carries its initials along.
+      if (spot.x !== base.position.x || spot.y !== base.position.y) edit(base.id, (d) => (d.position = spot));
+      const layout = pinLayout(fonts, spec, u, slot);
       const initials = partOf(base.id, "initials");
       if (base.metadata[MAP_HASH_KEY] !== layout.hash || !initials) {
         edit(base.id, (d) => {
@@ -155,6 +175,8 @@ async function sync(items: Item[]): Promise<boolean> {
     if ((role === "map-label" || role === "map-part") && (!item.attachedTo || !byId.has(item.attachedTo))) remove.push(item.id);
   }
 
+  lastTips = new Map([...pins].map(([id, p]) => [id, p.spot]));
+
   // One update for everything; a plate's new position carries its parts along.
   if (edits.size) {
     await OBR.scene.items.updateItems([...edits.keys()], (drafts) => {
@@ -185,10 +207,9 @@ async function placeLocation(position: Vector2): Promise<Item[]> {
 async function placePins(specs: PinSpec[], at: Vector2): Promise<Item[]> {
   const fonts = await loadFonts();
   const u = unit();
-  // Tiny offsets keep the left-to-right order of the specs in the fan.
-  const tips = specs.map((_, i) => ({ id: String(i), x: at.x + i * 0.01, y: at.y }));
-  const slots = fanSlots(tips, u);
-  return specs.flatMap((spec, i) => buildPin(spec, tips[i], pinLayout(fonts, spec, u, slots.get(String(i))!)));
+  const spot = { x: at.x, y: at.y };
+  const slots = groupSlots(specs.length, pinStyle);
+  return specs.flatMap((spec, i) => buildPin(spec, spot, pinLayout(fonts, spec, u, slots[i])));
 }
 
 async function crewPinSpecs(): Promise<PinSpec[]> {
@@ -197,9 +218,12 @@ async function crewPinSpecs(): Promise<PinSpec[]> {
     items.filter(isMapBase).map((i) => readMapSpec(i)).flatMap((s) => (s?.type === "pin" && s.sheet ? [s.sheet] : [])),
   );
   return toEntries(items)
-    .filter((e) => !e.error && !pinned.has(e.itemId))
+    // The shared crew sheet ("Gemeinsam") is nobody on the map.
+    .filter((e) => !e.error && !e.sheet.shared && !pinned.has(e.itemId))
     .sort((a, b) => a.sheet.order - b.sheet.order)
-    .map((e) => ({ type: "pin", name: e.sheet.handle, short: e.sheet.initials, color: e.sheet.color, sheet: e.itemId }));
+    .map((e) => ({
+      type: "pin", name: e.sheet.handle, short: e.sheet.initials, color: e.sheet.color, sheet: e.itemId, order: e.sheet.order,
+    }));
 }
 
 function createTool() {
@@ -266,7 +290,9 @@ OBR.onReady(async () => {
     unsubscribe?.();
     unsubscribe = null;
     if (!ready) return;
-    mapScale = readMapScale(await OBR.scene.getMetadata());
+    const metadata = await OBR.scene.getMetadata();
+    mapScale = readMapScale(metadata);
+    pinStyle = readPinStyle(metadata);
     gridDpi = await OBR.scene.grid.getDpi();
     schedule(await OBR.scene.items.getItems());
     unsubscribe = OBR.scene.items.onChange(schedule);
@@ -275,8 +301,10 @@ OBR.onReady(async () => {
   await watch(await OBR.scene.isReady());
   OBR.scene.onMetadataChange(async (metadata) => {
     const next = readMapScale(metadata);
-    if (next === mapScale) return;
+    const style = readPinStyle(metadata);
+    if (next === mapScale && style === pinStyle) return;
     mapScale = next;
+    pinStyle = style;
     schedule(await OBR.scene.items.getItems());
   });
   OBR.scene.grid.onChange(async (grid) => {

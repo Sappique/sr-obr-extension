@@ -1,5 +1,5 @@
 import type { Item } from "@owlbear-rodeo/sdk";
-import type { Align, LabelState } from "./fan";
+import { Align, DEFAULT_GROUP_STYLE, GROUP_STYLES, GroupStyle, LabelState } from "./fan";
 
 /**
  * Map markers. A location marker is its symbol (the item you drag) with a
@@ -12,6 +12,8 @@ export const MAP_ROLE_KEY = `${ID}/mapRole`;
 export const MAP_SPEC_KEY = `${ID}/map`;
 export const MAP_HASH_KEY = `${ID}/mapHash`;
 export const MAP_SCALE_KEY = `${ID}/mapScale`;
+/** Scene metadata: how pins on one spot are drawn (GroupStyle). */
+export const PIN_STYLE_KEY = `${ID}/pinStyle`;
 /** On a label plate: what it was last drawn with (LabelState + hash). */
 export const LABEL_KEY = `${ID}/mapLabel`;
 /** On a part: which part it is. */
@@ -34,6 +36,8 @@ export interface PinSpec {
   color: string;
   /** Crew sheet item this pin was made from, so it isn't added twice. */
   sheet?: string;
+  /** Crew order, for the order inside a group. */
+  order?: number;
 }
 export type MapSpec = PlaceSpec | PinSpec;
 
@@ -57,6 +61,11 @@ export const MAP_SCALE = { default: 1, min: 0.4, max: 3, step: 0.05 };
 export function readMapScale(metadata: Record<string, unknown>): number {
   const v = metadata[MAP_SCALE_KEY];
   return typeof v === "number" ? v : MAP_SCALE.default;
+}
+
+export function readPinStyle(metadata: Record<string, unknown>): GroupStyle {
+  const v = metadata[PIN_STYLE_KEY];
+  return GROUP_STYLES.some((s) => s.id === v) ? (v as GroupStyle) : DEFAULT_GROUP_STYLE;
 }
 
 /** Scene units per design unit: 100 design units are one grid cell at size 1. */

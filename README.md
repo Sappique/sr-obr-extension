@@ -85,11 +85,13 @@ something changes. "Map markers" tool in the toolbar (GM):
   Right-click the symbol or the label, "Edit map marker": name (Enter = new line), kind, and
   line alignment (Left / Centre / Right). A longer name grows away from the aligned edge. An
   empty name removes the label; a deleted label comes back while the name is set.
-- **Place crew pins:** one pin per crew sheet that isn't on the map yet (handle, initials, colour).
-  **Place a single pin:** a free pin to rename and recolour.
-- **Fan-out:** pins whose heads would overlap are drawn side by side, each pointer still ending at
-  its own pin's position. Drag one away and it is a single pin again (redrawn about a second after
-  the drop; only while the GM is in the room).
+- **Place crew pins:** one pin per crew sheet that isn't on the map yet (handle, initials,
+  colour; not the shared sheet), all on the clicked spot. **Place a single pin:** a free pin to
+  rename and recolour.
+- **Pins on one spot:** a pin dropped within a head's width of others snaps onto their exact spot,
+  and the group is drawn together (about a second after the drop; only while the GM is in the
+  room). Drag one further away to take it out. The look is a choice in the extension's popover:
+  Badge, Column, Arc or Fan.
 - **Size:** "Map marker size" slider in the extension's popover (GM).
 - **Layers:** pins are on Character (players can move them), locations and labels on Prop.
 

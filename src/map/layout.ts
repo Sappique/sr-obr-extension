@@ -118,23 +118,16 @@ export interface PinLayout {
   hash: string;
 }
 
-/** A pin's head at its fan slot, with a pointer down to the tip at (0, 0). */
+/** A pin drawn at its slot (head and pointer relative to the tip at (0, 0)). */
 export function pinLayout(fonts: Fonts, spec: PinSpec, unit: number, slot: PinSlot): PinLayout {
-  const { size: s, cut: c } = PIN;
-  const { hx, top } = slot;
-  const l = hx - s / 2;
-  const r = hx + s / 2;
-  const b = top + s;
-  const neck = 5;
-  const outline: Pt[] = [[l, top], [r - c, top], [r, top + c], [r, b], [hx + neck, b], [0, 0], [hx - neck, b], [l, b]];
   const size = 15;
   const short = spec.short || spec.name.slice(0, 2).toUpperCase();
   const w = measureText(fonts, "display", short, size);
   const text: Cmd[] = [];
-  drawText(text, fonts, "display", short, hx - w / 2, top + baselineOffset(fonts, "display", size, s), size);
+  drawText(text, fonts, "display", short, slot.hx - w / 2, slot.top + baselineOffset(fonts, "display", size, PIN.size), size);
   return {
-    pin: { commands: scaled(polygon(outline), unit), color: spec.color, opacity: 1, stroke: { color: COLOR.panel, width: 2 * unit } },
+    pin: { commands: scaled(polygon(slot.outline), unit), color: spec.color, opacity: 1, stroke: { color: COLOR.panel, width: 2 * unit } },
     initials: { commands: scaled(text, unit), color: COLOR.black, opacity: 1 },
-    hash: hashString(JSON.stringify([LAYOUT_VERSION, "pin", spec.short, spec.name, spec.color, unit, hx, top])),
+    hash: hashString(JSON.stringify([LAYOUT_VERSION, "pin", spec.short, spec.name, spec.color, unit, slot])),
   };
 }

@@ -11,6 +11,7 @@
       p { margin: 8px 0 0; font-size: 12px; color: #b3c0c6; }
       .check { display: flex; align-items: center; gap: 6px; margin-top: 12px; }
       .check input { width: auto; margin: 0; }
+      select { display: block; width: 100%; margin: 6px 0 0; padding: 4px 6px; color: #e3e9ec; background: #07080c; border: 1px solid #3a434b; font: 13px system-ui, sans-serif; }
       [hidden] { display: none; }
     </style>
   </head>
@@ -22,6 +23,9 @@
     <p id="notice" hidden>Only the GM can change the window scale.</p>
     <label id="mapBox" style="margin-top:14px">Map marker size <output id="mapValue"></output>
       <input id="mapScale" type="range" />
+    </label>
+    <label id="pinBox" style="margin-top:12px">Pins on one spot
+      <select id="pinStyle"></select>
     </label>
     <script type="module" src="/src/windows/settings.ts"></script>
   </body>
