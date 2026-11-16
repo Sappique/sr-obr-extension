@@ -27,6 +27,8 @@ let gridDpi = 150;
 let lastTips = new Map<string, Vector2>();
 /** Lock state of location icons and labels after the last sync, to tell which one was just (un)locked. */
 let lastLocked = new Map<string, boolean>();
+/** Same for visibility: hiding or showing either the icon or its label does it to both. */
+let lastVisible = new Map<string, boolean>();
 const unit = () => iconUnit(gridDpi, mapScale);
 const labelUnit = () => labelUnitOf(gridDpi, labelScale);
 
@@ -116,6 +118,7 @@ async function sync(items: Item[]): Promise<boolean> {
   const lu = labelUnit();
   const crew = crewOf(items);
   const nextLocked = new Map<string, boolean>();
+  const nextVisible = new Map<string, boolean>();
   const pins = planPins(pinTips(items, crew), u);
   let fonts: Fonts | null = null;
 
@@ -157,6 +160,14 @@ async function sync(items: Item[]): Promise<boolean> {
     }
     const spec = livePlace(raw, crew);
 
+    // Icon and label are hidden or shown together: whichever just changed sets both.
+    const label = (labels.get(base.id) ?? [])[0];
+    let visible = base.visible;
+    if (label && label.visible !== base.visible && lastVisible.get(base.id) === base.visible) visible = label.visible;
+    if (visible !== base.visible) edit(base.id, (d) => (d.visible = visible));
+    nextVisible.set(base.id, visible);
+    if (label) nextVisible.set(label.id, visible);
+
     const symbol = symbolLayout(spec, u);
     const partsOk = SYMBOL_PARTS.every((n) => !!partOf(base.id, n) === !!symbol[n]);
     if (base.metadata[MAP_HASH_KEY] !== symbol.hash || !partsOk) {
@@ -172,7 +183,7 @@ async function sync(items: Item[]): Promise<boolean> {
     }
     for (const n of SYMBOL_PARTS) {
       const part = partOf(base.id, n);
-      if (part) follow(part, base.visible);
+      if (part) follow(part, visible);
     }
     const gap = LABEL_GAP * lu;
     const name = spec.name.split("\n")[0] || "Ort";
@@ -216,8 +227,8 @@ async function sync(items: Item[]): Promise<boolean> {
       edit(target.id, (d) => (d.locked = locked));
       nextLocked.set(base.id, locked).set(plate.id, locked);
     } else nextLocked.set(base.id, base.locked).set(plate.id, plate.locked);
-    follow(plate, base.visible);
-    for (const p of parts.get(plate.id) ?? []) follow(p, base.visible);
+    follow(plate, visible);
+    for (const p of parts.get(plate.id) ?? []) follow(p, visible);
   }
 
   // Leftovers whose owner is gone.
@@ -228,6 +239,7 @@ async function sync(items: Item[]): Promise<boolean> {
 
   lastTips = new Map([...pins].map(([id, p]) => [id, p.spot]));
   lastLocked = nextLocked;
+  lastVisible = nextVisible;
 
   // One update for everything; a plate's new position carries its parts along.
   if (edits.size) {
