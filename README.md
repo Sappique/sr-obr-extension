@@ -14,6 +14,7 @@ frame's metadata (`sappique.sr-obr/window`); only the GM client generates parts.
 - **Size of everything:** the extension icon at the top opens the window scale (GM only; scene metadata, applied on slider release).
 - **Width:** drag a resize handle. Height follows the content.
 - **Connect:** select two windows, context menu "Connect". Again on the same pair removes it.
+- **Add linked window:** right-click one window, "Add linked window" creates a new one to its right, already connected and with the same visibility.
 - **Hide from players:** use OBR's own visibility toggle on the window.
 - **Keep players from moving windows:** frames are on the Prop layer, so turn off Prop update and
   delete for players in the room permissions.

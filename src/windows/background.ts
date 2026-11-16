@@ -33,7 +33,7 @@ import {
   toObr,
 } from "./items";
 import { applyWrites, frameBounds, stableTop, TopMemory } from "./frameState";
-import { hashString, layoutWindow, STYLE_VERSION } from "./layout";
+import { hashString, layoutWindow, STYLE_VERSION, WindowSpec } from "./layout";
 
 const ICON = (name: string) => `/icons/${name}.svg`;
 const TOOL_ID = `${ID}/window-tool`;
@@ -211,6 +211,11 @@ function migrateLinks(
   });
 }
 
+/**
+ * Links a GM action just made, merged in by the next sync pass, so the link
+ * and its route are stored in one write together.
+ */
+let pendingLinks: Link[] = [];
 let lastRouteInput = "";
 let lastDrawn: Record<"true" | "false", ReturnType<typeof networkCommands>> | null = null;
 
@@ -241,7 +246,9 @@ async function syncConnectors(
 
   type StoredLink = Partial<Link> & { a?: string; b?: string };
   const stored = (master.metadata[LINKS_KEY] as StoredLink[]) ?? [];
-  const migrated = migrateLinks(stored, boxes);
+  const isStored = (p: Link) => stored.some((s) => s.from === p.from && s.to === p.to);
+  pendingLinks = pendingLinks.filter((p) => !isStored(p));
+  const migrated = migrateLinks([...stored, ...pendingLinks], boxes);
   const links = migrated.filter((l) => boxes.has(l.from) && boxes.has(l.to));
   if (links.length === 0) {
     await OBR.scene.items.deleteItems(net.map((i) => i.id));
@@ -301,6 +308,7 @@ async function syncConnectors(
       }
     }
   });
+  pendingLinks = pendingLinks.filter((p) => !links.some((l) => l.from === p.from && l.to === p.to));
   return true;
 }
 
@@ -359,6 +367,26 @@ async function syncFlow(items: Item[]) {
 // ---------------------------------------------------------------------------
 // GM entry points
 
+/**
+ * A window with its parts already laid out, exactly as sync would render it,
+ * so creating one costs a single write instead of several sync round trips.
+ */
+async function buildWindow(position: Vector2, spec: WindowSpec, visible = true): Promise<Item[]> {
+  const t = windowTokens(uiScale);
+  const fonts = await loadFonts();
+  const width = Math.max(t.minWidth, Math.round(t.defaultWidth));
+  const layout = layoutWindow(fonts, spec, width, uiScale);
+  const frame = buildFrame(position, windowOutline(width, layout.height, t.cut), spec, t);
+  frame.visible = visible;
+  frame.metadata[RENDER_KEY] = {
+    key: hashString(JSON.stringify([spec, width, uiScale, STYLE_VERSION])),
+    parts: layout.parts.length,
+    height: layout.height,
+  } satisfies RenderState;
+  const parts = layout.parts.map((part) => buildPart(frame, part, toScene(position, 0, part.offsetY)));
+  return [frame, ...parts];
+}
+
 function createTool() {
   OBR.tool.create({
     id: TOOL_ID,
@@ -370,11 +398,9 @@ function createTool() {
     icons: [{ icon: ICON("window"), label: "Place window", filter: { activeTools: [TOOL_ID] } }],
     cursors: [{ cursor: "crosshair" }],
     async onToolClick(_, event) {
-      const t = windowTokens(uiScale);
-      const points = windowOutline(t.defaultWidth, t.cut * 4, t.cut);
-      const frame = buildFrame(event.pointerPosition, points, DEFAULT_SPEC, t);
-      await OBR.scene.items.addItems([frame]);
-      await OBR.player.select([frame.id]);
+      const built = await buildWindow(event.pointerPosition, DEFAULT_SPEC);
+      await OBR.scene.items.addItems(built);
+      void OBR.player.select([built[0].id]);
       await OBR.tool.activateTool("rodeo.owlbear.tool/move").catch(() => undefined);
     },
   });
@@ -391,18 +417,15 @@ function createContextMenu() {
       const source = context.items[0] as Curve;
       const box = frameBounds(source);
       const t = windowTokens(uiScale);
-      const frame = buildFrame(
-        { x: box.x + box.w + t.connector.sideOffset * 2, y: box.y },
-        windowOutline(t.defaultWidth, t.cut * 4, t.cut),
-        { ...DEFAULT_SPEC, title: "Neuer Knoten" },
-        t,
-      );
-      frame.visible = source.visible;
-      await OBR.scene.items.addItems([frame]);
-      const master = await findMaster();
-      if (master) await editLinks(master.id, (links) => [...links, { from: source.id, to: frame.id }]);
-      else await OBR.scene.items.addItems(buildNetwork([{ from: source.id, to: frame.id }], t));
-      await OBR.player.select([frame.id]);
+      const position = { x: box.x + box.w + t.connector.sideOffset * 2, y: box.y };
+      const built = await buildWindow(position, { ...DEFAULT_SPEC, title: "Neuer Knoten" }, source.visible);
+      const frame = built[0];
+      const link = { from: source.id, to: frame.id };
+      // With a connector network in place, the sync pass the new window
+      // triggers stores this link together with its route.
+      if (masterId) pendingLinks.push(link);
+      await OBR.scene.items.addItems(masterId ? built : [...built, ...buildNetwork([link], t)]);
+      void OBR.player.select([frame.id]);
     },
   });
   OBR.contextMenu.create({
@@ -468,6 +491,8 @@ async function editLinks(masterId: string, change: (links: Link[]) => Link[]) {
 const REVERSE_ID = `${ID}/reverse`;
 let selection: string[] = [];
 let knownLinks: Link[] = [];
+/** The connector item that stores the links, from the latest scene snapshot. */
+let masterId: string | null = null;
 let reverseShown = false;
 
 function refreshReverseMenu() {
@@ -512,6 +537,7 @@ OBR.onReady(async () => {
       (i) => roleOf(i) === "network" && netInfo(i).kind === "line" && netInfo(i).shown,
     );
     knownLinks = (master?.metadata[LINKS_KEY] as Link[] | undefined) ?? [];
+    masterId = master?.id ?? null;
     refreshReverseMenu();
     schedule(items);
     scheduleFlow(items);
