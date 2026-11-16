@@ -13,7 +13,11 @@ Chromium windows with a CDP (DevTools protocol) port and a tiny Node client (bui
 3. `tools/obr-test/launch.sh guest '<room url>'` — joins as a guest ("Ask to join"); the GM accepts.
    You can fill the name and click the button with `cdp.mjs 9223 eval /room/ -e '...'`.
 
-The windows may sit on other workspaces, but must not be minimised (screenshots go blank).
+**Keep both windows on a visible workspace** (they may be small; zoom the OBR viewport to
+compensate). Sway sends no frames to windows on hidden workspaces, so Chromium holds back real
+input there: `click` / `drag` / `rclick` hang (and `cdp.mjs` gives up after 30 s), and the held
+events replay all at once when the window is shown again, so markers seem to jump. SDK calls via
+`obr.sh` and `eval` still work on a hidden workspace. Don't minimise them either.
 
 ## Commands
 
@@ -33,6 +37,7 @@ Ports: GM 9222, guest 9223.
   `getPosition()`); `OBR.viewport.setPosition/setScale` to frame an area first.
 - Use real tool clicks to test tool code: `OBR.tool.activateTool(id)` and
   `OBR.tool.activateMode(id, modeId)` via `obr.sh`, then `cdp.mjs click`.
+- Screenshots are in device pixels (twice the CSS px on a HiDPI output); click coordinates are CSS px.
 - Only the GM client runs the extension's syncs; wait ~1–2 s after a change before checking.
 - Context-menu embeds (e.g. `map-editor.html`) are separate targets while the menu is open; edit
   their inputs via `eval` and dispatch `input`/`change` events.

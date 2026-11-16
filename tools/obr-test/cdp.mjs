@@ -5,6 +5,11 @@
 import { readFileSync, writeFileSync } from "node:fs";
 
 const [port, cmd, a, b, c] = process.argv.slice(2);
+// Never hang a test script: give up if Chromium doesn't answer.
+setTimeout(() => {
+  console.error("cdp.mjs: timed out");
+  process.exit(2);
+}, Number(process.env.CDP_TIMEOUT ?? 30000)).unref();
 const targets = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
 
 function session(target) {
@@ -57,7 +62,11 @@ if (cmd === "list") {
 } else if (cmd === "shot") {
   const t = targets.find((t) => t.type === "page" && t.url.includes("/room/"));
   const s = session(t);
-  const r = await s.send("Page.captureScreenshot", { format: "png" });
+  // captureBeyondViewport makes Chromium draw a fresh frame itself: a plain capture waits
+  // forever for the compositor when the window is on a hidden (sway) workspace.
+  // The first capture of a hidden window can still show the previous frame.
+  await s.send("Page.captureScreenshot", { format: "png", captureBeyondViewport: true });
+  const r = await s.send("Page.captureScreenshot", { format: "png", captureBeyondViewport: true });
   writeFileSync(a, Buffer.from(r.result.data, "base64"));
   console.log("saved", a);
   s.close();
