@@ -51,3 +51,12 @@ test("makeRoll produces a valid message", () => {
   assert.equal(n.initials, "HK");
   assert.ok(!isRollMessage({ ...n, names: ["TECHNIK"] })); // one name per die
 });
+
+test("bonus dice ride along and are counted", () => {
+  const msg = makeRoll("Hawk · AGI + Bonus", "#ff8a1f", [8, 6, 10], Math.random, { names: ["AGI", "Schleichen", "VR Bonus"], bonus: 1 });
+  assert.equal(msg.bonus, 1);
+  assert.ok(isRollMessage(msg));
+  assert.ok(!isRollMessage({ ...msg, bonus: 4 }));
+  assert.ok(isRollMessage(makeRoll("x", "#fff", Array(12).fill(6))));
+  assert.ok(!isRollMessage(makeRoll("x", "#fff", Array(13).fill(6))));
+});

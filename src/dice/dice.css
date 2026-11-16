@@ -41,6 +41,10 @@ html.win .roll{position:fixed;right:5px;bottom:5px;width:max-content}
 .dv .lab{font:10px var(--mono);letter-spacing:.14em;color:var(--dim)}
 .dv .nm{width:max-content;max-width:var(--nmax);font:600 12px/1.1 var(--disp);color:var(--soft);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dv.k-attr .nm{text-transform:uppercase;letter-spacing:.06em}
+/* bonus dice (chosen or VR): cyan outline and name, so they read as extras */
+.dv.k-bonus svg polygon,.dv.k-bonus svg polyline{stroke:var(--c,#5fcfdc)}
+.dv.k-bonus .nm{color:#5fcfdc}
+.dv.k-bonus.base svg polygon{stroke:var(--y)}
 .dv.rolling .num{fill:var(--soft)}
 .dv.base svg polygon{fill:var(--y)}
 .dv.base svg polyline{display:none}

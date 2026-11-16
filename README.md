@@ -99,6 +99,12 @@ a popover's new size a frame before its new position, so a window is only resize
 invisible and otherwise only moved; see the comment at the top of `manager.ts`.
 Preview (one page, no OBR): `http://localhost:5175/dice.html?demo`.
 
+- **Bonus dice:** right-click a roll row for a small popup (`src/sheets/rollAsk.ts`): add bonus
+  dice (+D4 … +D12, click a chosen one to remove it), then Roll or Cancel. Bonus dice join the
+  roll like any other die and show in cyan in the result.
+- **VR:** a sheet with `"vr_ask": 8` (any die size) in its JSON asks "In VR?" on a left click;
+  "Ja (+D8)" adds a D8 named "VR Bonus". The bonus popup then also has an "In VR" toggle.
+
 ## Develop
 
 ```sh

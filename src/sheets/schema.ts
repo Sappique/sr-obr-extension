@@ -44,10 +44,12 @@ export interface Sheet {
   attributes: Attribute[];
   /** The sheet body as one Markdown document with layout comments (see doc.ts). */
   doc: string;
+  /** If set, a roll first asks "In VR?"; yes adds a die of this size as "VR Bonus". */
+  vr_ask?: number;
 }
 
 /** The parts the GM edits as raw JSON in the sheet (they rarely change). */
-export const STRUCTURE_KEYS = ["handle", "initials", "color", "meta", "attributes"] as const;
+export const STRUCTURE_KEYS = ["handle", "initials", "color", "meta", "attributes", "vr_ask"] as const;
 export type Structure = Pick<Sheet, (typeof STRUCTURE_KEYS)[number]>;
 
 type Obj = Record<string, unknown>;
@@ -92,6 +94,7 @@ export function validateStructure(value: unknown, shared: boolean): string | nul
   if (!Array.isArray(value.attributes)) return '"attributes" must be a list.';
   if (shared && value.attributes.length) return "The shared sheet has no attributes.";
   const okDie = (d: unknown) => typeof d === "number" && DIE_SIZES.includes(d);
+  if (value.vr_ask !== undefined && !okDie(value.vr_ask)) return `"vr_ask" must be a die size (one of ${DIE_SIZES.join(", ")}) or left out.`;
   const dieHint = `"die" (one of ${DIE_SIZES.join(", ")})`;
   for (const a of value.attributes as Obj[]) {
     if (!isObj(a) || !okDie(a.die) || typeof a.name !== "string" || !Array.isArray(a.skills)) return `Attribute ${JSON.stringify(a?.name)}: needs ${dieHint}, "name", "skills".`;

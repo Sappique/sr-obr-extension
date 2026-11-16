@@ -39,8 +39,10 @@ export interface RollMessage {
   seed: number;
   /** Runner initials for the header square (e.g. "HK"). Optional for older senders. */
   initials?: string;
-  /** One name per die (attribute, skill, specialisation), shown above the dice. */
+  /** One name per die (attribute, skill, specialisation, bonus dice), shown above the dice. */
   names?: string[];
+  /** How many of the last dice are bonus dice (chosen or VR), drawn as such. */
+  bonus?: number;
 }
 
 export function makeRoll(
@@ -48,7 +50,7 @@ export function makeRoll(
   color: string,
   sizes: number[],
   random: () => number = Math.random,
-  extra: { initials?: string; names?: string[] } = {},
+  extra: { initials?: string; names?: string[]; bonus?: number } = {},
 ): RollMessage {
   return {
     ...extra,
@@ -60,10 +62,14 @@ export function makeRoll(
   };
 }
 
+/** Attribute, skill and specialisation plus up to nine bonus dice. */
+export const MAX_DICE = 12;
+
 export function isRollMessage(value: unknown): value is RollMessage {
   const v = value as RollMessage;
   return !!v && typeof v.id === "string" && typeof v.title === "string" && Array.isArray(v.dice) &&
-    v.dice.length > 0 && v.dice.length <= 6 && v.dice.every((d) => [4, 6, 8, 10, 12].includes(d.size) && d.value >= 1 && d.value <= d.size) &&
+    v.dice.length > 0 && v.dice.length <= MAX_DICE && v.dice.every((d) => [4, 6, 8, 10, 12].includes(d.size) && d.value >= 1 && d.value <= d.size) &&
     (v.initials === undefined || (typeof v.initials === "string" && v.initials.length <= 4)) &&
+    (v.bonus === undefined || (Number.isInteger(v.bonus) && v.bonus >= 0 && v.bonus <= v.dice.length)) &&
     (v.names === undefined || (Array.isArray(v.names) && v.names.length === v.dice.length && v.names.every((n) => typeof n === "string" && n.length <= 80)));
 }

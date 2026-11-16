@@ -12,6 +12,7 @@ import "@fontsource/share-tech-mono/400.css";
 import "./sidebar.css";
 import OBR from "@owlbear-rodeo/sdk";
 import { makeRoll } from "../dice/roll";
+import { askBonus, askVr, ExtraDie } from "./rollAsk";
 import { Backend, Entry, mockBackend, obrBackend } from "./backend";
 import { esc, markdownToHtml } from "./markdownHtml";
 import { parseDoc } from "./doc";
@@ -92,14 +93,14 @@ const RL = '<span class="rl">ROLL</span>';
 function skillsBlock(s: Sheet) {
   let h = "";
   s.attributes.forEach((a, ai) => {
-    let g = `<div class="att" data-roll="${ai}" title="Roll ${esc(a.name)}">${die(a.die, "a")}<b>${esc(a.name)}</b>${RL}</div>`;
+    let g = `<div class="att" data-roll="${ai}" title="Roll ${esc(a.name)} (right click: bonus dice)">${die(a.die, "a")}<b>${esc(a.name)}</b>${RL}</div>`;
     a.skills.forEach((sk, si) => {
       const cont = si < a.skills.length - 1 ? " cont" : ""; // more skills follow: the attribute trunk passes this row
-      g += `<div class="sub${cont}" data-roll="${ai}.${si}" title="Roll ${esc(a.name)} + ${esc(sk.name)}">${die(sk.die, "s")}<span class="nm">${esc(sk.name)}</span>${RL}</div>`;
+      g += `<div class="sub${cont}" data-roll="${ai}.${si}" title="Roll ${esc(a.name)} + ${esc(sk.name)} (right click: bonus dice)">${die(sk.die, "s")}<span class="nm">${esc(sk.name)}</span>${RL}</div>`;
       g += sk.specializations
         .map(
           (p, pi) =>
-            `<div class="specrow${cont}" data-roll="${ai}.${si}.${pi}" title="Roll ${esc(a.name)} + ${esc(sk.name)} + ${esc(p.name)}"><i class="elb"></i>${die(p.die, "p")}${esc(p.name)}${RL}</div>`,
+            `<div class="specrow${cont}" data-roll="${ai}.${si}.${pi}" title="Roll ${esc(a.name)} + ${esc(sk.name)} + ${esc(p.name)} (right click: bonus dice)"><i class="elb"></i>${die(p.die, "p")}${esc(p.name)}${RL}</div>`,
         )
         .join("");
     });
@@ -316,12 +317,11 @@ function update(fn: (s: Sheet) => void) {
   const e = currentEntry();
   if (e) void backend.update(e.itemId, fn);
 }
-function roll(path: string) {
-  const s = currentEntry()?.sheet;
-  if (!s) return;
+/** Names and die sizes of a roll row ("ai", "ai.si" or "ai.si.pi"). */
+function rollParts(s: Sheet, path: string) {
   const [ai, si, pi] = path.split(".").map(Number);
   const a = s.attributes[ai];
-  if (!a) return;
+  if (!a) return null;
   const parts = [a.name.toUpperCase()]; // attributes are shown in capitals everywhere
   const sizes = [a.die];
   const sk = si !== undefined ? a.skills[si] : undefined;
@@ -334,8 +334,40 @@ function roll(path: string) {
       sizes.push(p.die);
     }
   }
-  backend.roll(makeRoll(`${s.handle} · ${parts.join(" + ")}`, s.color, sizes, Math.random, { initials: s.initials, names: parts }));
+  return { parts, sizes };
 }
+
+function roll(path: string, extras: ExtraDie[] = []) {
+  const s = currentEntry()?.sheet;
+  const r = s && rollParts(s, path);
+  if (!s || !r) return;
+  const names = [...r.parts, ...extras.map((e) => e.name)];
+  backend.roll(
+    makeRoll(`${s.handle} · ${names.join(" + ")}`, s.color, [...r.sizes, ...extras.map((e) => e.size)], Math.random, {
+      initials: s.initials,
+      names,
+      bonus: extras.length || undefined,
+    }),
+  );
+}
+
+/** Left click: roll; a sheet with vr_ask asks "In VR?" first. Right click: choose bonus dice. */
+async function rollFrom(row: HTMLElement, path: string, choose: boolean) {
+  const s = currentEntry()?.sheet;
+  const r = s && rollParts(s, path);
+  if (!s || !r) return;
+  const ctx = { color: s.color, initials: s.initials, what: r.parts.join(" + "), anchor: row, vr: s.vr_ask };
+  if (!choose && !s.vr_ask) return roll(path);
+  const extras = choose ? await askBonus(ctx) : await askVr({ ...ctx, vr: s.vr_ask! });
+  if (extras) roll(path, extras);
+}
+
+app.addEventListener("contextmenu", (ev) => {
+  const row = (ev.target as HTMLElement).closest<HTMLElement>("[data-roll]");
+  if (!row) return;
+  ev.preventDefault();
+  void rollFrom(row, row.dataset.roll!, true);
+});
 
 app.addEventListener("click", (ev) => {
   const t = (ev.target as HTMLElement).closest<HTMLElement>(
@@ -350,7 +382,7 @@ app.addEventListener("click", (ev) => {
     store.set("open", open); // the sheet popover follows via the storage event
     return render(true);
   }
-  if (d.roll !== undefined) return roll(d.roll);
+  if (d.roll !== undefined) return void rollFrom(t, d.roll, false);
   if (!gm) return;
   if (d.create !== undefined) return void backend.createCrew();
   if (d.nyd) return update((s) => void (s.nuyen += Number(d.nyd)));

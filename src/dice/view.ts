@@ -82,7 +82,8 @@ function rollHTML(msg: RollMessage) {
         .map((d, i) => {
           const s = SHAPES[d.size] ?? SHAPES[6];
           const [cx, cy] = s.c;
-          return `<div class="dv k-${KINDS[i] ?? "spec"} rolling"><span class="nm" title="${esc(names[i])}">${esc(names[i])}</span><div class="face" style="--ox:${(cx / 60) * 100}%;--oy:${(cy / 60) * 100}%"><svg viewBox="0 0 60 60"><g class="spin" data-cx="${cx.toFixed(2)}" data-cy="${cy.toFixed(2)}"><polygon points="${s.p}"/>${s.f ? `<polyline points="${s.f}"/>` : ""}<text class="num" x="${cx.toFixed(2)}" y="${cy.toFixed(2)}" text-anchor="middle" dominant-baseline="central" font-size="${NUM_UNITS}">?</text></g></svg></div><span class="lab">D${d.size}</span></div>`;
+          const kind = i >= msg.dice.length - (msg.bonus ?? 0) ? "bonus" : KINDS[i] ?? "spec";
+          return `<div class="dv k-${kind} rolling"><span class="nm" title="${esc(names[i])}">${esc(names[i])}</span><div class="face" style="--ox:${(cx / 60) * 100}%;--oy:${(cy / 60) * 100}%"><svg viewBox="0 0 60 60"><g class="spin" data-cx="${cx.toFixed(2)}" data-cy="${cy.toFixed(2)}"><polygon points="${s.p}"/>${s.f ? `<polyline points="${s.f}"/>` : ""}<text class="num" x="${cx.toFixed(2)}" y="${cy.toFixed(2)}" text-anchor="middle" dominant-baseline="central" font-size="${NUM_UNITS}">?</text></g></svg></div><span class="lab">D${d.size}</span></div>`;
         })
         .join("")}</div>
     </div>

@@ -218,3 +218,30 @@ html.standalone #app{position:fixed;left:8px;top:50%;transform:translateY(-50%)}
 .sheet-err{margin:0 0 12px;padding:8px 10px;border-left:4px solid #ff2848;background:rgba(255,40,72,.12);font:12px/1.4 var(--disp);color:var(--txt)}
 .sheet-err b{display:block;font:10px var(--mono);letter-spacing:.14em;color:#ff2848}
 .sheet-err code{display:block;margin-top:4px;font:11px var(--mono);color:var(--soft);white-space:pre-wrap}
+
+/* ---------- popups before a roll (src/sheets/rollAsk.ts), styled like the roll result ---------- */
+.rollask{position:fixed;z-index:40;width:max-content;max-width:calc(100vw - 12px);padding:1px;background:var(--steel);box-shadow:0 6px 18px rgba(0,0,0,.55)}
+.rollask > .ra-inner{background:var(--panel);border-left:4px solid var(--pc,var(--y))}
+.rollask .ra-rh{display:flex;align-items:center;gap:8px;padding:4px 14px 4px 4px;border-bottom:1px solid var(--line);font:700 13px/1.1 var(--disp);letter-spacing:.06em;color:#fff;text-transform:uppercase}
+.rollask .ra-rh .ra-ini{flex:none;display:grid;place-items:center;width:22px;height:22px;background:var(--pc);color:#000;font:900 10px/1 var(--orb)}
+.rollask .ra-ab{padding:8px 12px 6px}
+.rollask .ra-ab.ra-q{font:700 20px/1.1 var(--disp);letter-spacing:.04em;color:#fff;padding:12px 14px 8px}
+.rollask .ra-lbl{font:10px var(--mono);letter-spacing:.14em;color:var(--dim);margin-bottom:4px}
+.rollask .ra-chosen{display:flex;flex-wrap:wrap;gap:4px;min-height:34px;align-items:center;margin-bottom:6px}
+.rollask .ra-chosen .ra-none{font:11px var(--mono);color:var(--dim)}
+.rollask .ra-add{display:flex;gap:4px}
+.rollask .ra-die{display:flex;flex-direction:column;align-items:center;gap:1px;padding:2px 3px;background:none;border:1px solid transparent;color:var(--soft)}
+.rollask .ra-die:hover:not(:disabled){border-color:var(--steel)}
+.rollask .ra-die:disabled{opacity:.35;cursor:default}
+.rollask .ra-die svg{width:30px;height:30px;overflow:visible}
+.rollask .ra-die polygon{fill:none;stroke:var(--c);stroke-width:3.5;stroke-linejoin:round}
+.rollask .ra-die text{fill:#fff;font:700 17px var(--orb)}
+.rollask .ra-die span{font:10px var(--mono);letter-spacing:.1em}
+.rollask .ra-die.ra-picked:hover polygon{stroke:var(--r)}
+.rollask .ra-vr{margin-top:8px;padding:4px 8px;background:none;border:1px solid var(--steel);color:var(--soft);font:600 13px var(--disp)}
+.rollask .ra-vr[aria-pressed="true"]{border-color:var(--c);color:#000;background:var(--c)}
+.rollask .ra-af{display:flex;justify-content:flex-end;gap:6px;padding:6px 8px 8px}
+.rollask .ra-af button{padding:5px 14px;border:none;font:700 13px var(--disp);letter-spacing:.08em;text-transform:uppercase}
+.rollask .ra-cancel{background:var(--steel);color:var(--txt)}
+.rollask .ra-go{background:var(--y);color:#000}
+.rollask .ra-af button:focus-visible{outline:2px solid #fff;outline-offset:1px}

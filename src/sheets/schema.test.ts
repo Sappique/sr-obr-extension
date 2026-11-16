@@ -1,7 +1,7 @@
 // Run with: npm test
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { formatSheet, normalCase, parseSheetText, toSheet, type Sheet } from "./schema.ts";
+import { formatSheet, normalCase, parseSheetText, toSheet, validateStructure, type Sheet } from "./schema.ts";
 
 const sheet: Sheet = {
   v: 2,
@@ -60,4 +60,11 @@ test("hand-edit mistakes give readable errors", () => {
 test("normal case only changes names written in capitals", () => {
   assert.equal(normalCase("PHYSISCH"), "Physisch");
   assert.equal(normalCase("Physisch"), "Physisch");
+});
+
+test("vr_ask is optional and must be a die size", () => {
+  const base = { handle: "Hawk", initials: "HK", color: "#ff8a1f", meta: [], attributes: [] };
+  assert.equal(validateStructure(base, false), null);
+  assert.equal(validateStructure({ ...base, vr_ask: 8 }, false), null);
+  assert.match(validateStructure({ ...base, vr_ask: 7 }, false) ?? "", /vr_ask/);
 });
