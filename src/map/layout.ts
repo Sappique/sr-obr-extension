@@ -3,7 +3,7 @@ import { Cmd, polygon, Pt, rect } from "../core/geometry";
 import { COLOR } from "../core/style";
 import { baselineOffset, drawText, measureText } from "../core/vectorText";
 import { hashString } from "../windows/layout";
-import { boxLeft, PIN, PinSlot } from "./fan";
+import { boxLeft, PinSlot } from "./fan";
 import type { PinSpec, PlaceKind, PlaceSpec } from "./model";
 
 /**
@@ -172,11 +172,17 @@ export interface PinLayout {
 
 /** A pin drawn at its slot (head and pointer relative to the tip at (0, 0)). */
 export function pinLayout(fonts: Fonts, spec: PinSpec, unit: number, slot: PinSlot): PinLayout {
-  const size = 15;
+  const { size, stack } = slot.text;
   const short = spec.short || spec.name.slice(0, 2).toUpperCase();
-  const w = measureText(fonts, "display", short, size);
   const text: Cmd[] = [];
-  drawText(text, fonts, "display", short, slot.hx - w / 2, slot.top + baselineOffset(fonts, "display", size, PIN.size), size);
+  // Side by side, or one letter per line through the head's height.
+  const lines = stack ? Array.from(short) : [short];
+  const lineHeight = stack ? Math.min(size * 1.15, (slot.h - 2) / lines.length) : slot.h;
+  const first = slot.top + (slot.h - lineHeight * lines.length) / 2;
+  lines.forEach((line, i) => {
+    const w = measureText(fonts, "display", line, size);
+    drawText(text, fonts, "display", line, slot.hx - w / 2, first + i * lineHeight + baselineOffset(fonts, "display", size, lineHeight), size);
+  });
   return {
     pin: { commands: scaled(polygon(slot.outline), unit), color: spec.color, opacity: 1, stroke: { color: COLOR.panel, width: 2 * unit } },
     initials: { commands: scaled(text, unit), color: COLOR.black, opacity: 1 },

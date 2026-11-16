@@ -34,11 +34,18 @@ test("every group style points at the spot and keeps heads apart", () => {
       const slots = groupSlots(n, id);
       assert.equal(slots.length, n);
       assert.ok(slots.some((s) => reachesSpot(s.outline)), `${id} ${n}: no pointer`);
+      // Head boxes (the pointer below the head left out) may touch but not overlap.
+      const boxes = slots.map((sl) => {
+        const pts = sl.outline.filter(([, y]) => y <= sl.top + sl.h);
+        const xs = pts.map(([x]) => x);
+        return { l: Math.min(...xs), r: Math.max(...xs), t: sl.top, b: sl.top + sl.h };
+      });
       for (let i = 0; i < n; i++) {
         for (let j = i + 1; j < n; j++) {
-          const dx = Math.abs(slots[i].hx - slots[j].hx);
-          const dy = Math.abs(slots[i].top - slots[j].top);
-          assert.ok(dx >= PIN.size - 0.5 || dy >= PIN.size - 0.5, `${id} ${n}: heads ${i} and ${j} overlap`);
+          const a = boxes[i];
+          const b = boxes[j];
+          const overlap = a.l < b.r - 0.5 && b.l < a.r - 0.5 && a.t < b.b - 0.5 && b.t < a.b - 0.5;
+          assert.ok(!overlap, `${id} ${n}: heads ${i} and ${j} overlap`);
         }
       }
     }

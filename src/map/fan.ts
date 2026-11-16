@@ -25,14 +25,34 @@ export const PIN = {
 };
 
 /** How pins standing on one spot are drawn. */
-export type GroupStyle = "fan" | "badge" | "column" | "arc";
+export type GroupStyle = "badge" | "badge-slim" | "badge-thin" | "column" | "column-flat" | "column-thin" | "arc" | "fan";
 export const GROUP_STYLES: { id: GroupStyle; label: string }[] = [
   { id: "badge", label: "Badge (one strip, one pointer)" },
+  { id: "badge-slim", label: "Badge, slim (initials stacked)" },
+  { id: "badge-thin", label: "Badge, thin (initials stacked)" },
   { id: "column", label: "Column (stacked, one pointer)" },
+  { id: "column-flat", label: "Column, flat" },
+  { id: "column-thin", label: "Column, thin" },
   { id: "arc", label: "Arc (heads around the spot)" },
   { id: "fan", label: "Fan (row, converging pointers)" },
 ];
 export const DEFAULT_GROUP_STYLE: GroupStyle = "badge";
+
+/** Segment size and initials layout per strip style. */
+const STRIPS: Record<string, { w: number; h: number; text: PinText }> = {
+  badge: { w: 30, h: 30, text: { stack: false, size: 15 } },
+  "badge-slim": { w: 20, h: 32, text: { stack: true, size: 12 } },
+  "badge-thin": { w: 16, h: 30, text: { stack: true, size: 10.5 } },
+  column: { w: 30, h: 30, text: { stack: false, size: 15 } },
+  "column-flat": { w: 30, h: 20, text: { stack: false, size: 12 } },
+  "column-thin": { w: 30, h: 15, text: { stack: false, size: 10 } },
+};
+
+export interface PinText {
+  /** One letter per line instead of side by side. */
+  stack: boolean;
+  size: number;
+}
 
 export interface PinTip {
   id: string;
@@ -45,9 +65,11 @@ export interface PinTip {
 /** A pin's drawing relative to its tip, in design units. */
 export interface PinSlot {
   outline: Pt[];
-  /** Centre x and top of the head, for the initials. */
+  /** Centre x, top and height of the head, for the initials. */
   hx: number;
   top: number;
+  h: number;
+  text: PinText;
 }
 
 /** Pins closer than one head width (chains count) stand on one spot. */
@@ -88,19 +110,30 @@ export function pickSpot(group: PinTip[], last: Map<string, { x: number; y: numb
   return { x: best.x, y: best.y };
 }
 
-function head(l: number, top: number, w: number, cut: boolean, neckAt: number | null, tip: Pt = [0, 0]): Pt[] {
+/**
+ * A head box with its top-right corner cut. `neck` is the stretch of the
+ * bottom edge the pointer leaves from (it may be only a half pointer).
+ */
+function head(l: number, top: number, w: number, h: number, cut: boolean, neck: [number, number] | null, tip: Pt = [0, 0]): Pt[] {
   const r = l + w;
-  const b = top + PIN.size;
-  const c = PIN.cut;
+  const b = top + h;
+  const c = Math.min(PIN.cut, w / 3, h / 3);
   const pts: Pt[] = [[l, top], ...(cut ? ([[r - c, top], [r, top + c]] as Pt[]) : ([[r, top]] as Pt[])), [r, b]];
-  if (neckAt !== null) pts.push([neckAt + PIN.neck, b], tip, [neckAt - PIN.neck, b]);
-  pts.push([l, b]);
+  if (neck) {
+    if (neck[1] < r) pts.push([neck[1], b]);
+    pts.push(tip);
+    if (neck[0] > l) pts.push([neck[0], b]);
+  }
+  if (!neck || neck[0] > l) pts.push([l, b]);
   return pts;
 }
 
+const ROW: PinText = { stack: false, size: 15 };
+const full = (x: number): [number, number] => [x - PIN.neck, x + PIN.neck];
+
 const lone = (): PinSlot => {
   const top = -PIN.size - PIN.stem;
-  return { outline: head(-PIN.size / 2, top, PIN.size, true, 0), hx: 0, top };
+  return { outline: head(-PIN.size / 2, top, PIN.size, PIN.size, true, full(0)), hx: 0, top, h: PIN.size, text: ROW };
 };
 export const LONE_SLOT: PinSlot = lone();
 
@@ -110,56 +143,56 @@ export function groupSlots(n: number, style: GroupStyle): PinSlot[] {
   const { size: s, stem, gap } = PIN;
   const idx = [...Array(n).keys()];
   const r1 = (v: number) => Math.round(v * 10) / 10;
-  switch (style) {
-    case "fan": {
-      // Heads in a row, a little higher the wider it gets; every pointer meets the spot.
-      const top = -s - stem - 4 * (n - 1);
-      return idx.map((i) => {
-        const hx = (i - (n - 1) / 2) * (s + gap);
-        return { outline: head(hx - s / 2, top, s, true, hx), hx, top };
-      });
-    }
-    case "badge": {
-      // One strip of segments; the pointer leaves the middle segment straight down.
-      // Odd count: from the middle segment's centre; even: from the joint of the middle two.
-      const even = n % 2 === 0;
-      const k = even ? n / 2 - 1 : (n - 1) / 2;
-      const top = -s - stem;
-      return idx.map((i) => {
-        const l = even ? (i - n / 2) * s : (i - k) * s - s / 2;
-        const neck = i !== k ? null : even ? l + s : l + s / 2;
-        return { outline: head(l, top, s, i === n - 1, neck), hx: l + s / 2, top };
-      });
-    }
-    case "column": {
-      // Heads stacked upwards; the bottom one carries the pointer.
-      return idx.map((i) => {
-        const top = -s - stem - (n - 1 - i) * (s + 3);
-        return { outline: head(-s / 2, top, s, true, i === n - 1 ? 0 : null), hx: 0, top };
-      });
-    }
-    case "arc": {
-      // Heads on an arc above the spot, each pointing in.
-      const step = Math.min((40 * Math.PI) / 180, ((120 * Math.PI) / 180) / (n - 1));
-      const at = (radius: number, i: number) => {
-        const a = (i - (n - 1) / 2) * step;
-        return { hx: r1(radius * Math.sin(a)), top: r1(-radius * Math.cos(a) - s / 2) };
-      };
-      // Square heads: neighbours need a full head of clearance on one axis.
-      let radius = (s + gap) / (2 * Math.sin(step / 2));
-      const clear = (r: number) =>
-        idx.slice(1).every((i) => {
-          const a = at(r, i - 1);
-          const b = at(r, i);
-          return Math.max(Math.abs(a.hx - b.hx), Math.abs(a.top - b.top)) >= s + gap;
-        });
-      while (!clear(radius)) radius += 1;
-      return idx.map((i) => {
-        const { hx, top } = at(radius, i);
-        return { outline: head(hx - s / 2, top, s, true, hx), hx, top };
-      });
-    }
+  if (style.startsWith("badge")) {
+    // One strip of segments; the pointer goes straight down from its middle:
+    // from the middle segment, or half from each of the middle two.
+    const { w, h, text } = STRIPS[style];
+    const top = -h - stem;
+    const even = n % 2 === 0;
+    return idx.map((i) => {
+      const l = even ? (i - n / 2) * w : (i - (n - 1) / 2) * w - w / 2;
+      let neck: [number, number] | null = null;
+      if (!even && i === (n - 1) / 2) neck = full(0);
+      if (even && i === n / 2 - 1) neck = [-PIN.neck, 0];
+      if (even && i === n / 2) neck = [0, PIN.neck];
+      return { outline: head(l, top, w, h, i === n - 1, neck), hx: l + w / 2, top, h, text };
+    });
   }
+  if (style.startsWith("column")) {
+    // Heads stacked upwards; the bottom one carries the pointer.
+    const { w, h, text } = STRIPS[style];
+    return idx.map((i) => {
+      const top = -h - stem - (n - 1 - i) * (h + 3);
+      return { outline: head(-w / 2, top, w, h, true, i === n - 1 ? full(0) : null), hx: 0, top, h, text };
+    });
+  }
+  if (style === "fan") {
+    // Heads in a row, a little higher the wider it gets; every pointer meets the spot.
+    const top = -s - stem - 4 * (n - 1);
+    return idx.map((i) => {
+      const hx = (i - (n - 1) / 2) * (s + gap);
+      return { outline: head(hx - s / 2, top, s, s, true, full(hx)), hx, top, h: s, text: ROW };
+    });
+  }
+  // Arc: heads on an arc above the spot, each pointing in.
+  const step = Math.min((40 * Math.PI) / 180, ((120 * Math.PI) / 180) / (n - 1));
+  const at = (radius: number, i: number) => {
+    const a = (i - (n - 1) / 2) * step;
+    return { hx: r1(radius * Math.sin(a)), top: r1(-radius * Math.cos(a) - s / 2) };
+  };
+  // Square heads: neighbours need a full head of clearance on one axis.
+  let radius = (s + gap) / (2 * Math.sin(step / 2));
+  const clear = (r: number) =>
+    idx.slice(1).every((i) => {
+      const a = at(r, i - 1);
+      const b = at(r, i);
+      return Math.max(Math.abs(a.hx - b.hx), Math.abs(a.top - b.top)) >= s + gap;
+    });
+  while (!clear(radius)) radius += 1;
+  return idx.map((i) => {
+    const { hx, top } = at(radius, i);
+    return { outline: head(hx - s / 2, top, s, s, true, full(hx)), hx, top, h: s, text: ROW };
+  });
 }
 
 // ---------------------------------------------------------------------------
