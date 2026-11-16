@@ -2,6 +2,7 @@
 // node cdp.mjs <port> list
 // node cdp.mjs <port> eval <urlSubstring> <file.js|-e expr>   (evaluates in the first matching target, awaits promises)
 // node cdp.mjs <port> shot <out.png>                          (screenshot of the OBR room tab)
+// node cdp.mjs <port> click x y | rclick x y | drag x1 y1 x2 y2  (real mouse input on the room tab)
 import { readFileSync, writeFileSync } from "node:fs";
 
 const [port, cmd, a, b, c] = process.argv.slice(2);
@@ -51,10 +52,15 @@ if (cmd === "list") {
   const [x1, y1, x2, y2] = process.argv.slice(4).map(Number);
   const m = (type, x, y, extra = {}) => s.send("Input.dispatchMouseEvent", { type, x, y, button: cmd === "rclick" ? "right" : "left", clickCount: 1, ...extra });
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  // Short pauses between the events, so press, moves and release land in separate frames
+  // like a real mouse (headless SwiftShader renders slowly).
   await m("mouseMoved", x1, y1, { button: "none" });
+  await sleep(30);
   await m("mousePressed", x1, y1, { buttons: cmd === "rclick" ? 2 : 1 });
+  await sleep(30);
   if (cmd === "drag") {
     for (let i = 1; i <= 15; i++) { await m("mouseMoved", x1 + ((x2 - x1) * i) / 15, y1 + ((y2 - y1) * i) / 15, { buttons: 1 }); await sleep(20); }
+    await sleep(30);
     await m("mouseReleased", x2, y2);
   } else await m("mouseReleased", x1, y1);
   console.log("ok");
@@ -62,11 +68,16 @@ if (cmd === "list") {
 } else if (cmd === "shot") {
   const t = targets.find((t) => t.type === "page" && t.url.includes("/room/"));
   const s = session(t);
-  // captureBeyondViewport makes Chromium draw a fresh frame itself: a plain capture waits
-  // forever for the compositor when the window is on a hidden (sway) workspace.
-  // The first capture of a hidden window can still show the previous frame.
-  await s.send("Page.captureScreenshot", { format: "png", captureBeyondViewport: true });
-  const r = await s.send("Page.captureScreenshot", { format: "png", captureBeyondViewport: true });
+  // Plain capture first (right for headless and visible windows). On a hidden (sway) workspace
+  // it waits forever for the compositor; then fall back to captureBeyondViewport, which makes
+  // Chromium draw a frame itself (the first such capture can still show the previous frame).
+  // Don't use captureBeyondViewport headless: it can return the WebGL canvas empty or stale.
+  const timeout = (ms) => new Promise((r) => setTimeout(() => r(null), ms).unref());
+  let r = await Promise.race([s.send("Page.captureScreenshot", { format: "png" }), timeout(5000)]);
+  if (!r?.result) {
+    await s.send("Page.captureScreenshot", { format: "png", captureBeyondViewport: true });
+    r = await s.send("Page.captureScreenshot", { format: "png", captureBeyondViewport: true });
+  }
   writeFileSync(a, Buffer.from(r.result.data, "base64"));
   console.log("saved", a);
   s.close();
