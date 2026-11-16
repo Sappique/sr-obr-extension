@@ -8,6 +8,7 @@ import {
   buildFrame,
   buildNetwork,
   buildPart,
+  shadowZ,
   ANIMATED_KEY,
   DEFAULT_SPEC,
   EMPTY_PATH,
@@ -117,6 +118,7 @@ async function sync(items: Item[]): Promise<boolean> {
   const remove: string[] = [];
   const place = new Map<string, Vector2>();
   const show = new Map<string, boolean>();
+  const restack = new Map<string, number>();
   type FrameFix = { position: Vector2; w: number; h: number; state: RenderState; title: string };
   const fixes = new Map<string, FrameFix>();
   const boxes = new Map<string, Box & { visible: boolean }>();
@@ -141,7 +143,11 @@ async function sync(items: Item[]): Promise<boolean> {
     const parts = partsOf.get(frame.id) ?? [];
     let height = bounds.h;
 
-    for (const part of parts) if (part.visible !== frame.visible) show.set(part.id, frame.visible);
+    for (const part of parts) {
+      if (part.visible !== frame.visible) show.set(part.id, frame.visible);
+      // Keep a Map-layer shadow just below its frame (also if the frame was reordered).
+      if (part.layer === "MAP" && part.zIndex !== shadowZ(frame)) restack.set(part.id, shadowZ(frame));
+    }
 
     // Compare the real outline too: a vertical-only drag leaves the width,
     // and so the key, unchanged.
@@ -195,13 +201,15 @@ async function sync(items: Item[]): Promise<boolean> {
       });
     },
     place: async () => {
-      if (!place.size && !show.size) return;
-      await OBR.scene.items.updateItems([...new Set([...place.keys(), ...show.keys()])], (drafts) => {
+      if (!place.size && !show.size && !restack.size) return;
+      await OBR.scene.items.updateItems([...new Set([...place.keys(), ...show.keys(), ...restack.keys()])], (drafts) => {
         for (const draft of drafts) {
           const position = place.get(draft.id);
           if (position) draft.position = position;
           const visible = show.get(draft.id);
           if (visible !== undefined) draft.visible = visible;
+          const z = restack.get(draft.id);
+          if (z !== undefined) draft.zIndex = z;
         }
       });
     },
@@ -213,7 +221,7 @@ async function sync(items: Item[]): Promise<boolean> {
     },
   });
   const linked = await syncConnectors(items, boxes);
-  return linked || add.length + place.size + show.size + remove.length + fixes.size > 0;
+  return linked || add.length + place.size + show.size + restack.size + remove.length + fixes.size > 0;
 }
 
 /** Links stored before directions existed keep the way they were flowing. */

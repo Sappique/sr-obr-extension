@@ -110,15 +110,19 @@ export function buildFrame(position: Vector2, points: Pt[], spec: WindowSpec, t:
 
 export const toObr = (commands: Cmd[]) => commands as unknown as PathCommand[];
 
+/** zIndex of a Map-layer window's shadow: just below its frame. */
+export const shadowZ = (frame: Item) => frame.zIndex - 1;
+
 export function buildPart(frame: Curve, part: Part, position: Vector2): Path {
   const builder = buildPath();
   // Items in one layer sort by zIndex, which defaults to creation time. A
   // regenerated band must not end up above a reused tag fill.
   if (part.layer === "base") builder.zIndex(0).disableAutoZIndex(true);
-  // Under a Map-layer frame the shadow goes below it on the same layer, or its
-  // stripes would cover the whole body from the Drawing layer.
+  // Under a Map-layer frame the shadow goes right below it on the same layer, or
+  // its stripes would cover the whole body from the Drawing layer. Not at 0: a
+  // map image in the scene would hide it.
   const underMap = frame.layer === "MAP" && part.layer === "shadow";
-  if (underMap) builder.zIndex(0).disableAutoZIndex(true);
+  if (underMap) builder.zIndex(shadowZ(frame)).disableAutoZIndex(true);
   return builder
     .name("Window part")
     .position(position)
