@@ -12,7 +12,8 @@ export const SAMPLES: Record<WindowKind, { spec: WindowSpec; width: number; labe
   },
   calendar: {
     label: "Calendar",
-    width: 1500,
+    // Three months of about the old middle month's size each.
+    width: 2050,
     spec: { title: "Chrono // Kalender 2077", tag: "Chrono", variant: "standard", markdown: SAMPLE_CALENDAR, kind: "calendar", today: SAMPLE_TODAY },
   },
   feed: {

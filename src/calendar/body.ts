@@ -12,14 +12,12 @@ const DAYNAMES = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Sa
 /** Deadlines first, then runs, meetings, past runs, everything else. */
 const ORDER: Record<EventType | "other", number> = { deadline: 0, run: 1, meeting: 2, past: 3, other: 4 };
 
-/** Share of the width for the current month; the months before and after split the rest. */
-const CURRENT_SHARE = 0.46;
 /** Every month has six rows, so a day cell is always the same size. */
 const ROWS = 6;
 
 /**
  * The calendar: a big current date, then the month before, the current month
- * (largest) and the month after. Day cells have a fixed size; event titles wrap
+ * and the month after, all the same size. Day cells have a fixed size; event titles wrap
  * inside them, and what doesn't fit is summed up as "+N".
  */
 export function calendarBody(ctx: BodyContext, spec: WindowSpec, x: number, y: number, width: number): number {
@@ -28,17 +26,13 @@ export function calendarBody(ctx: BodyContext, spec: WindowSpec, x: number, y: n
   let bottom = hero(ctx, cal, x, y, width) + u(26);
 
   const gap = u(30);
-  const mid = (width - 2 * gap) * CURRENT_SHARE;
-  const side = (width - 2 * gap - mid) / 2;
+  const w = (width - 2 * gap) / 3;
   const t = cal.today;
   const prev = t.m === 1 ? { y: t.y - 1, m: 12 } : { y: t.y, m: t.m - 1 };
   const next = t.m === 12 ? { y: t.y + 1, m: 1 } : { y: t.y, m: t.m + 1 };
-  const k = side / mid;
-  const ends = [
-    month(ctx, cal, prev, x, bottom, side, k),
-    month(ctx, cal, { y: t.y, m: t.m }, x + side + gap, bottom, mid, 1),
-    month(ctx, cal, next, x + side + gap + mid + gap, bottom, side, k),
-  ];
+  const ends = [prev, { y: t.y, m: t.m }, next].map((which, i) =>
+    month(ctx, cal, which, x + i * (w + gap), bottom, w, i === 1),
+  );
   bottom = Math.max(...ends);
   if (cal.errors.length) bottom = errors(ctx, cal.errors, x, bottom + u(16), width);
   return bottom;
@@ -63,11 +57,10 @@ function hero(ctx: BodyContext, cal: Calendar, x: number, y: number, width: numb
 
 const kindOf = (e: CalEvent): EventType | "other" => e.type ?? "other";
 
-/** One month: name, weekday row and six rows of fixed-size day cells. `k` scales everything. */
-function month(ctx: BodyContext, cal: Calendar, which: { y: number; m: number }, x: number, y: number, width: number, k: number): number {
+/** One month: name (yellow for the current one), weekday row and six rows of fixed-size day cells. */
+function month(ctx: BodyContext, cal: Calendar, which: { y: number; m: number }, x: number, y: number, width: number, current: boolean): number {
   const { u } = ctx;
-  const s = (n: number) => u(n) * k;
-  const current = k === 1;
+  const s = u;
   const titleH = s(34);
   ctx.line(`${MONTHS[which.m - 1]} ${which.y}`, x, y, titleH, {
     font: "bold", size: s(24), color: current ? COLOR.yellow : COLOR.white, spacing: 0.12, upper: true, maxWidth: width,
@@ -92,16 +85,16 @@ function month(ctx: BodyContext, cal: Calendar, which: { y: number; m: number },
       const d = row * 7 + i - offset + 1;
       if (d < 1 || d > days) continue;
       const day: Day = { y: which.y, m: which.m, d };
-      cell(ctx, cal, day, x + i * colW, rowY, colW - cellGap, cellH - cellGap, k, dayNumber(day) - todayN);
+      cell(ctx, cal, day, x + i * colW, rowY, colW - cellGap, cellH - cellGap, dayNumber(day) - todayN);
     }
     ctx.flush(rowY);
   }
   return y + ROWS * cellH;
 }
 
-function cell(ctx: BodyContext, cal: Calendar, day: Day, x: number, y: number, w: number, h: number, k: number, fromToday: number) {
+function cell(ctx: BodyContext, cal: Calendar, day: Day, x: number, y: number, w: number, h: number, fromToday: number) {
   const { u } = ctx;
-  const s = (n: number) => u(n) * k;
+  const s = u;
   const today = fromToday === 0;
   ctx.add("fill", COLOR.white, today ? 0.07 : 0.03, rect(x, y, w, h));
   if (today) ctx.add("text", COLOR.yellow, 1, rectRing(x, y, w, h, s(3)));
