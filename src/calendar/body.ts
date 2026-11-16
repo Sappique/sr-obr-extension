@@ -233,41 +233,45 @@ function arrowBox(x: number, y: number, w: number, h: number, tip: number): Pt[]
 
 /** Draws one multi-day part in its style; returns its bottom. */
 function drawSpan(ctx: BodyContext, e: CalEvent, lines: string[], x: number, y: number, w: number, continues: boolean, m: ReturnType<typeof cellMetrics>) {
-  const color = e.past ? PAST.color : e.color;
+  const color = e.color;
   const h = spanHeight(e, lines.length, m);
   const tip = continues ? Math.min(m.tip, h / 2) : 0;
   let text = color;
+  let font = m.font;
   let textY = y + m.chipPad;
   switch (e.style) {
     case "box":
-      ctx.add("fill", color, e.past ? PAST.fill : 1, polygon(arrowBox(x, y, w, h, tip)));
-      text = e.past ? COLOR.white : onFill(color);
+      if (e.past) {
+        // A past box is only its outline, in its colour.
+        const t = Math.max(1, m.chipPad * 0.5);
+        const inner = arrowBox(x + t, y + t, w - 2 * t - (tip ? t * 0.6 : 0), h - 2 * t, tip ? Math.max(0, tip - t) : 0);
+        ctx.add("text", color, 1, [...polygon(arrowBox(x, y, w, h, tip)), ...polygon(inner.reverse())]);
+      } else {
+        ctx.add("fill", color, 1, polygon(arrowBox(x, y, w, h, tip)));
+        text = onFill(color);
+      }
       break;
-    case "outline": {
-      const t = Math.max(1, m.chipPad * 0.5);
-      const inner = arrowBox(x + t, y + t, w - 2 * t - (tip ? t * 0.6 : 0), h - 2 * t, tip ? Math.max(0, tip - t) : 0);
-      ctx.add("text", color, 1, [...polygon(arrowBox(x, y, w, h, tip)), ...polygon(inner.reverse())]);
-      break;
-    }
     case "line": {
       // The line runs above the title, ending in an arrow head if the entry goes on.
-      const bar = y + (m.headH - m.lineW) / 2;
+      const lineW = m.lineW * (e.past ? PAST_LINE : 1);
+      const bar = y + (m.headH - lineW) / 2;
       const r = x + w;
       const head = continues ? m.tip : 0;
       const pts: Pt[] = head
-        ? [[x, bar], [r - head, bar], [r - head, y], [r, y + m.headH / 2], [r - head, y + m.headH], [r - head, bar + m.lineW], [x, bar + m.lineW]]
-        : [[x, bar], [r, bar], [r, bar + m.lineW], [x, bar + m.lineW]];
+        ? [[x, bar], [r - head, bar], [r - head, y], [r, y + m.headH / 2], [r - head, y + m.headH], [r - head, bar + lineW], [x, bar + lineW]]
+        : [[x, bar], [r, bar], [r, bar + lineW], [x, bar + lineW]];
       ctx.add("fill", color, 1, polygon(pts));
-      text = e.past ? COLOR.grey : COLOR.body;
+      text = COLOR.body;
       textY = y + m.headH + m.gap;
       break;
     }
     case "text":
+      if (e.past) font = PAST_FONT;
       break;
   }
   const textX = e.style === "line" ? x : x + m.chipPad * 2;
   lines.forEach((line, i) => {
-    if (line) ctx.line(line, textX, textY + i * m.lh, m.lh, { font: m.font, size: m.size, color: text });
+    if (line) ctx.line(line, textX, textY + i * m.lh, m.lh, { font, size: m.size, color: text });
   });
   return y + h;
 }
@@ -283,29 +287,31 @@ function onFill(hex: string): string {
   return lum > 140 ? COLOR.black : COLOR.white;
 }
 
-/** Past entries keep their style but turn grey. */
-const PAST = { color: COLOR.grey, fill: 0.45 };
+/** Past entries keep their colour but are drawn lighter (outline box, thinner line, light text). */
+const PAST_LINE = 0.45;
+const PAST_FONT: FontKey = "light";
 
 /** Draws one entry in its style; returns its bottom. */
 function chip(ctx: BodyContext, e: CalEvent, lines: string[], x: number, y: number, w: number, lh: number, pad: number, size: number, font: FontKey) {
   const h = lines.length * lh + 2 * pad;
-  const color = e.past ? PAST.color : e.color;
+  const color = e.color;
   let text = color;
   let textX = x + pad * 2;
   switch (e.style) {
     case "box":
-      ctx.add("fill", color, e.past ? PAST.fill : 1, rect(x, y, w, h));
-      text = e.past ? COLOR.white : onFill(color);
+      if (e.past) ctx.add("text", color, 1, rectRing(x, y, w, h, Math.max(1, pad * 0.5)));
+      else {
+        ctx.add("fill", color, 1, rect(x, y, w, h));
+        text = onFill(color);
+      }
       break;
     case "line":
-      ctx.add("fill", color, 1, rect(x, y, Math.max(1, pad * 1.2), h));
-      text = e.past ? COLOR.grey : COLOR.body;
+      ctx.add("fill", color, 1, rect(x, y, Math.max(1, pad * 1.2 * (e.past ? PAST_LINE : 1)), h));
+      text = COLOR.body;
       textX = x + pad * 3;
       break;
-    case "outline":
-      ctx.add("text", color, 1, rectRing(x, y, w, h, Math.max(1, pad * 0.5)));
-      break;
     case "text":
+      if (e.past) font = PAST_FONT;
       break;
   }
   lines.forEach((line, i) => {

@@ -10,13 +10,14 @@ import { resolveColor } from "./colors.ts";
  * Dates are dd.mm.yyyy or dd.mm. (the year defaults to the current date's).
  * The end date is optional (empty = one day). Colour (optional, default
  * yellow): a runner's name, a colour name (yellow, cyan, red, … or any CSS
- * name) or #rrggbb. Style (optional): box (default), line, outline or text.
- * Entries whose days are all before the current date are drawn greyed out.
+ * name) or #rrggbb. Style (optional): box (default), line or text.
+ * Entries whose days are all before the current date are drawn lighter: a box
+ * becomes an outline, a line gets thinner, text gets a lighter weight.
  * Write `\,` for a comma inside a title and `\\` for a backslash.
  * The current date is not part of the text; it is its own field of the window.
  */
-export type EntryStyle = "box" | "line" | "outline" | "text";
-export const ENTRY_STYLES: EntryStyle[] = ["box", "line", "outline", "text"];
+export type EntryStyle = "box" | "line" | "text";
+export const ENTRY_STYLES: EntryStyle[] = ["box", "line", "text"];
 
 export interface Day {
   y: number;
@@ -137,7 +138,7 @@ export function parseCalendar(source: string, todayText?: string, runners: Recor
 export const SAMPLE_TODAY = "19.05.2077";
 export const SAMPLE_CALENDAR = `// date, end date, title, colour, style
 12.03., , Run: Bog Treasure Leak
-20.04., , Treffen mit Abigale (Ice Palace), cyan, outline
+20.04., , Treffen mit Abigale (Ice Palace), cyan
 08.05., 11.05., Aqua Umbra brauen, Phlox, line
 12.05., , Knöchel gebrochen, Hawk, line
 17.05., , Run: Adventure Land Start
@@ -146,5 +147,5 @@ export const SAMPLE_CALENDAR = `// date, end date, title, colour, style
 24.05., , Deadline Ludis Studio, red
 01.06., , Miete fällig, red, text
 02.06., 04.06., Reha\\, Teil 2, Peppermint, line
-26.06., , Adventure Land 2 Launch-Event, cyan, outline
+26.06., , Adventure Land 2 Launch-Event, cyan
 `;
