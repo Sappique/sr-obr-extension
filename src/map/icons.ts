@@ -76,7 +76,8 @@ const FRAME = {
   diamond: () => poly([0, -12], [12, 0], [0, 12], [-12, 0]),
   circle: () => circ(0, 0, 11.5, 36),
   hex: () => poly([0, -12], [10.4, -6], [10.4, 6], [0, 12], [-10.4, 6], [-10.4, -6]),
-  tri: () => poly([0, -12], [12.5, 10.5], [-12.5, 10.5]),
+  // Smaller than the other bodies: a plain triangle looks big at full size.
+  tri: () => poly([0, -9.5], [10, 8], [-10, 8]),
   house: () => poly([0, -12], [12, -2], [12, 12], [-12, 12], [-12, -2]),
 };
 

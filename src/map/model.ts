@@ -1,5 +1,5 @@
 import type { Item } from "@owlbear-rodeo/sdk";
-import { Align, LabelState } from "./fan";
+import type { Align, LabelState } from "./fan";
 
 /**
  * Map markers. A location marker is its symbol (the item you drag) with a
@@ -103,9 +103,20 @@ export function readMapSpec(item: Item): MapSpec | undefined {
 
 export type LabelMeta = LabelState & { hash: string };
 
+/** The "Add locations" modal. */
+export const IMPORT_MODAL_ID = `${ID}/map-import`;
+
+/** Scene metadata: size of location labels (plate, bar and text), apart from the icons. */
+export const LABEL_SCALE_KEY = `${ID}/labelScale`;
+
+/** Size of the icons (locations and pins). */
 export const MAP_SCALE = { default: 1, min: 0.4, max: 3, step: 0.05 };
 export function readMapScale(metadata: Record<string, unknown>): number {
   const v = metadata[MAP_SCALE_KEY];
+  return typeof v === "number" ? v : MAP_SCALE.default;
+}
+export function readLabelScale(metadata: Record<string, unknown>): number {
+  const v = metadata[LABEL_SCALE_KEY];
   return typeof v === "number" ? v : MAP_SCALE.default;
 }
 

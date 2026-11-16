@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Add locations</title>
+    <style>
+      html, body { height: 100%; margin: 0; }
+      body { box-sizing: border-box; display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; color: #e3e9ec; background: #1e2130; font: 13px system-ui, sans-serif; }
+      h1 { margin: 0; font-size: 15px; color: #f5e10a; }
+      p { margin: 0; font-size: 12px; color: #b3c0c6; }
+      code { color: #e3e9ec; }
+      textarea { flex: 1; min-height: 0; box-sizing: border-box; width: 100%; padding: 8px; resize: none; color: #e3e9ec; background: #07080c; border: 1px solid #3a434b; font: 12px/1.4 monospace; }
+      textarea:focus { outline: none; border-color: #f5e10a; }
+      .bar { display: flex; gap: 8px; align-items: center; }
+      #status { flex: 1; font-size: 12px; color: #b3c0c6; white-space: pre-wrap; max-height: 64px; overflow: auto; }
+      #status.err { color: #ff8a9a; }
+      button { padding: 6px 14px; border: none; cursor: pointer; font: 600 13px system-ui, sans-serif; }
+      #add { color: #07080c; background: #f5e10a; }
+      #close { color: #e3e9ec; background: #2c3140; }
+    </style>
+  </head>
+  <body>
+    <h1>Add locations</h1>
+    <p>
+      Paste JSON (<code>[{"name": "…", "kind": "corp"}]</code>; also <code>align</code>, <code>color</code>, <code>broken</code>,
+      and <code>sheet</code> = crew handle for a home's colour) or text, one per line: <code>kind: name</code> or just a name
+      (<code>|</code> = line break). Kinds: <span id="kinds"></span>. They are added below each other in the middle of the view.
+    </p>
+    <textarea id="text" spellcheck="false" placeholder='[{"name": "Harrow Ost", "kind": "home", "sheet": "Hawk"}]'></textarea>
+    <div class="bar">
+      <div id="status"></div>
+      <button id="close" type="button">Close</button>
+      <button id="add" type="button">Add</button>
+    </div>
+    <script type="module" src="/src/map/import.ts"></script>
+  </body>
+</html>

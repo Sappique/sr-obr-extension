@@ -95,6 +95,13 @@ something changes. "Map markers" tool in the toolbar (GM):
 - **Pins on one spot:** a pin dropped within a head's width of others snaps onto their exact spot,
   and the group is drawn as one thin column of their initials with one pointer (about a second
   after the drop; only while the GM is in the room). Drag one further away to take it out.
-- **Size:** "Map marker size" slider in the extension's popover (GM).
+- **Sizes:** "Marker icon size" (location icons and pins) and "Marker text size" (location labels:
+  plate, bar and text) in the extension's popover (GM). A label's distance from its icon scales with
+  the text size.
+- **Add locations…** (same popover, GM): paste JSON or text, and the locations are added below each
+  other in the middle of the view, ready to be placed. JSON is an array of
+  `{"name", "kind", "align"?, "color"?, "broken"?, "sheet"?}` (`sheet` = crew handle whose colour a
+  home takes); text is one `kind: name` (or just a name) per line, `|` for a line break.
+  `designs/locations-import.json` holds all locations from the mock data.
 - **Layers:** pins are on Character (players can move them), locations and labels on Prop.
 

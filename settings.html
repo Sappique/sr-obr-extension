@@ -11,6 +11,7 @@
       p { margin: 8px 0 0; font-size: 12px; color: #b3c0c6; }
       .check { display: flex; align-items: center; gap: 6px; margin-top: 12px; }
       .check input { width: auto; margin: 0; }
+      #import { display: block; width: 100%; margin-top: 12px; padding: 6px; color: #07080c; background: #f5e10a; border: none; font: 600 13px system-ui, sans-serif; cursor: pointer; }
       [hidden] { display: none; }
     </style>
   </head>
@@ -20,9 +21,15 @@
     </label>
     <label class="check"><input id="animated" type="checkbox" /> Animated links</label>
     <p id="notice" hidden>Only the GM can change the window scale.</p>
-    <label id="mapBox" style="margin-top:14px">Map marker size <output id="mapValue"></output>
-      <input id="mapScale" type="range" />
-    </label>
+    <div id="mapBox">
+      <label style="margin-top:14px">Marker icon size <output id="mapValue"></output>
+        <input id="mapScale" type="range" />
+      </label>
+      <label style="margin-top:10px">Marker text size <output id="labelValue"></output>
+        <input id="labelScale" type="range" />
+      </label>
+      <button id="import" type="button">Add locations…</button>
+    </div>
     <script type="module" src="/src/windows/settings.ts"></script>
   </body>
 </html>

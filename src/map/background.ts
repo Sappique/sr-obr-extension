@@ -2,11 +2,12 @@ import OBR, { Item, Path, Vector2 } from "@owlbear-rodeo/sdk";
 import { Fonts, loadFonts } from "../core/fonts";
 import { toEntries } from "../sheets/backend";
 import { defaultAnchor, groupSlots, groupTips, LONE_SLOT, moveAnchor, pickSpot, PinSlot, PinTip } from "./fan";
-import { applyShape, buildLabel, buildPart, buildPin, buildSymbol, SYMBOL_PARTS } from "./items";
+import { buildLocation, LABEL_GAP } from "./create";
+import { applyShape, buildLabel, buildPart, buildPin, SYMBOL_PARTS } from "./items";
 import { labelLayout, pinLayout, symbolLayout } from "./layout";
 import {
   ID, isMapBase, LABEL_KEY, LabelMeta, MAP_HASH_KEY, MAP_ROLE_KEY, MAP_SPEC_KEY, mapRole, markerUnit, newPin, newPlace,
-  CrewInfo, livePin, livePlace, PART_KEY, PartName, PinSpec, readMapScale, readMapSpec,
+  CrewInfo, livePin, livePlace, PART_KEY, PartName, PinSpec, readLabelScale, readMapScale, readMapSpec,
 } from "./model";
 
 /**
@@ -20,10 +21,12 @@ const MAX_PASSES = 4;
 
 let isGm = false;
 let mapScale = 1;
+let labelScale = 1;
 let gridDpi = 150;
 /** Pin positions after the last sync, to tell which pin was just moved. */
 let lastTips = new Map<string, Vector2>();
 const unit = () => markerUnit(gridDpi, mapScale);
+const labelUnit = () => markerUnit(gridDpi, labelScale);
 
 // ---------------------------------------------------------------------------
 // Sync (GM only, serialized like the window sync)
@@ -108,6 +111,7 @@ async function sync(items: Item[]): Promise<boolean> {
   const add: Item[] = [];
   const remove: string[] = [];
   const u = unit();
+  const lu = labelUnit();
   const crew = crewOf(items);
   const pins = planPins(pinTips(items, crew), u);
   let fonts: Fonts | null = null;
@@ -167,20 +171,21 @@ async function sync(items: Item[]): Promise<boolean> {
       const part = partOf(base.id, n);
       if (part) follow(part, base.visible);
     }
-    const gap = symbol.half / u + 7;
+    const gap = symbol.half + LABEL_GAP * lu;
     const name = spec.name.split("\n")[0] || "Ort";
     if (base.name !== name) edit(base.id, (d) => (d.name = name));
 
     const [plate, ...extra] = labels.get(base.id) ?? [];
     for (const e of extra) remove.push(e.id, ...(parts.get(e.id) ?? []).map((p) => p.id));
-    const layout = labelLayout(fonts, spec, u);
+    const layout = labelLayout(fonts, spec, lu);
     if (!layout) {
       if (plate) remove.push(plate.id, ...(parts.get(plate.id) ?? []).map((p) => p.id));
       continue;
     }
-    const meta: LabelMeta = { unit: u, align: spec.align, width: layout.width, hash: layout.hash };
+    // A label's offset from its icon scales with the label size.
+    const meta: LabelMeta = { unit: lu, align: spec.align, width: layout.width, hash: layout.hash };
     if (!plate) {
-      add.push(...buildLabel(base, layout, defaultAnchor(base.position, spec.align, layout.width, u, gap), meta));
+      add.push(...buildLabel(base, layout, defaultAnchor(base.position, spec.align, layout.width, 1, gap), meta));
       continue;
     }
     const was = plate.metadata[LABEL_KEY] as LabelMeta | undefined;
@@ -221,15 +226,7 @@ async function sync(items: Item[]): Promise<boolean> {
 // Creating markers, built complete
 
 async function placeLocation(position: Vector2): Promise<Item[]> {
-  const fonts = await loadFonts();
-  const spec = newPlace();
-  const u = unit();
-  const icon = symbolLayout(spec, u);
-  const symbol = buildSymbol(spec, position, icon);
-  const layout = labelLayout(fonts, spec, u)!;
-  const anchor = defaultAnchor(position, spec.align, layout.width, u, icon.half / u + 7);
-  const label = buildLabel(symbol[0], layout, anchor, { unit: u, align: spec.align, width: layout.width, hash: layout.hash });
-  return [...symbol, ...label];
+  return buildLocation(await loadFonts(), newPlace(), position, { icon: unit(), label: labelUnit() }, new Map());
 }
 
 /** Pins for the given specs around one point, already fanned out together. */
@@ -321,6 +318,7 @@ OBR.onReady(async () => {
     if (!ready) return;
     const metadata = await OBR.scene.getMetadata();
     mapScale = readMapScale(metadata);
+    labelScale = readLabelScale(metadata);
     gridDpi = await OBR.scene.grid.getDpi();
     schedule(await OBR.scene.items.getItems());
     unsubscribe = OBR.scene.items.onChange(schedule);
@@ -329,8 +327,10 @@ OBR.onReady(async () => {
   await watch(await OBR.scene.isReady());
   OBR.scene.onMetadataChange(async (metadata) => {
     const next = readMapScale(metadata);
-    if (next === mapScale) return;
+    const nextLabel = readLabelScale(metadata);
+    if (next === mapScale && nextLabel === labelScale) return;
     mapScale = next;
+    labelScale = nextLabel;
     schedule(await OBR.scene.items.getItems());
   });
   OBR.scene.grid.onChange(async (grid) => {
