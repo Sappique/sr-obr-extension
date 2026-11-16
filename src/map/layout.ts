@@ -97,6 +97,8 @@ export interface LabelLayout {
   text: Shape;
   /** Plate width in scene units. */
   width: number;
+  /** Plate height in scene units. */
+  height: number;
   hash: string;
 }
 
@@ -134,6 +136,7 @@ export function labelLayout(fonts: Fonts, spec: PlaceSpec, unit: number): LabelL
     bar: { commands: scaled(rect(barRight ? right - L.bar : left, top, L.bar, h), unit), color, opacity: 1 },
     text: { commands: scaled(text, unit), color: spec.kind === "danger" ? "#ff8a9a" : COLOR.white, opacity: 1 },
     width: Math.round(w * unit * 10) / 10,
+    height: Math.round(h * unit * 10) / 10,
     hash: hashString(JSON.stringify([LAYOUT_VERSION, "label", spec.name, spec.kind, color, spec.align, unit])),
   };
 }

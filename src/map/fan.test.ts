@@ -1,7 +1,7 @@
 // Run with: npm test
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { defaultAnchor, groupSlots, groupTips, LONE_SLOT, moveAnchor, pickSpot, PIN } from "./fan.ts";
+import { boxLeft, groupSlots, groupTips, LONE_SLOT, moveAnchor, pickSpot, PIN, snapAnchor } from "./fan.ts";
 
 const unit = 1.5;
 const tip = (id: string, x: number, y: number, rank = id) => ({ id, x, y, rank });
@@ -41,7 +41,7 @@ test("a group is one column that points at the spot, heads apart", () => {
 
 test("changing alignment keeps the plate's left edge", () => {
   const symbol = { x: 100, y: 100 };
-  const anchor = defaultAnchor(symbol, "left", 80, unit);
+  const anchor = snapAnchor(symbol, "left", 20, 12, 7);
   const moved = moveAnchor(anchor, symbol, { unit, align: "left", width: 80 }, { unit, align: "right", width: 80 });
   assert.deepEqual(moved, { x: anchor.x + 80, y: anchor.y });
 });
@@ -50,4 +50,15 @@ test("a new marker size scales the label offset around the symbol", () => {
   const symbol = { x: 0, y: 0 };
   const moved = moveAnchor({ x: 30, y: -10 }, symbol, { unit: 1, align: "left", width: 50 }, { unit: 2, align: "left", width: 100 });
   assert.deepEqual(moved, { x: 60, y: -20 });
+});
+
+test("snapping puts the aligned edge next to the icon, centred labels below it", () => {
+  const icon = { x: 100, y: 50 };
+  const [half, gap, width, height] = [12, 7, 80, 20];
+  const left = snapAnchor(icon, "left", height, half, gap);
+  assert.equal(left.x + boxLeft("left", width), 119);
+  const right = snapAnchor(icon, "right", height, half, gap);
+  assert.equal(right.x + boxLeft("right", width) + width, 81);
+  assert.deepEqual(snapAnchor(icon, "bottom", height, half, gap), { x: 100, y: 50 + 12 + 7 + 10 });
+  assert.deepEqual(snapAnchor(icon, "top", height, half, gap), { x: 100, y: 50 - 12 - 7 - 10 });
 });

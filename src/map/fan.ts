@@ -172,8 +172,18 @@ export function moveAnchor(
   };
 }
 
-/** Default label spot: plate starting a little right of the symbol. */
-export const LABEL_GAP = 14;
-export function defaultAnchor(symbol: { x: number; y: number }, align: Align, width: number, unit: number, gap = LABEL_GAP) {
-  return { x: round(symbol.x + gap * unit - boxLeft(align, width)), y: symbol.y };
+/** Where a label sits around its icon. */
+export type LabelSide = "left" | "right" | "top" | "bottom";
+
+/**
+ * The label's spot next to its icon, with the aligned edge facing the icon:
+ * "left" (left-aligned) to the right of it, "right" to the left, "top" and
+ * "bottom" centred above or below. `half` is half the icon's size and `gap`
+ * the space to the plate (scene units).
+ */
+export function snapAnchor(icon: { x: number; y: number }, side: LabelSide, height: number, half: number, gap: number) {
+  if (side === "left") return { x: round(icon.x + half + gap), y: icon.y };
+  if (side === "right") return { x: round(icon.x - half - gap), y: icon.y };
+  const dy = half + gap + height / 2;
+  return { x: icon.x, y: round(side === "top" ? icon.y - dy : icon.y + dy) };
 }

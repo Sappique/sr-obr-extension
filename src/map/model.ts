@@ -1,5 +1,5 @@
 import type { Item } from "@owlbear-rodeo/sdk";
-import type { Align, LabelState } from "./fan";
+import type { Align, LabelSide, LabelState } from "./fan";
 
 /**
  * Map markers. A location marker is its symbol (the item you drag) with a
@@ -14,6 +14,8 @@ export const MAP_HASH_KEY = `${ID}/mapHash`;
 export const MAP_SCALE_KEY = `${ID}/mapScale`;
 /** On a label plate: what it was last drawn with (LabelState + hash). */
 export const LABEL_KEY = `${ID}/mapLabel`;
+/** On a label plate: put it next to its icon by its alignment on the next redraw (set by the editor). */
+export const LABEL_SNAP_KEY = `${ID}/mapLabelSnap`;
 /** On a part: which part it is. */
 export const PART_KEY = `${ID}/mapPart`;
 
@@ -41,6 +43,8 @@ export interface PlaceSpec {
   name: string;
   kind: PlaceKind;
   align: Align;
+  /** For centred labels: above or below the icon (default below). */
+  centreSide?: "top" | "bottom";
   /** Overrides the kind's colour. */
   color?: string;
   /** Takes the colour of this crew sheet item, live (e.g. a runner's home). Wins over `color`. */
@@ -103,6 +107,10 @@ export function readMapSpec(item: Item): MapSpec | undefined {
 
 export type LabelMeta = LabelState & { hash: string };
 
+/** The side a location's label snaps to, from its alignment. */
+export const labelSide = (spec: PlaceSpec): LabelSide =>
+  spec.align === "center" ? (spec.centreSide ?? "bottom") : spec.align;
+
 /** The "Add locations" modal. */
 export const IMPORT_MODAL_ID = `${ID}/map-import`;
 
@@ -122,6 +130,14 @@ export function readLabelScale(metadata: Record<string, unknown>): number {
 
 /** Scene units per design unit: 100 design units are one grid cell at size 1. */
 export const markerUnit = (dpi: number, scale: number) => (dpi / 100) * scale;
+/**
+ * What 100 % on the sliders means: the icons at half and the labels at 65 %
+ * of the drawing's design size (the first version's 50 % and 65 %).
+ */
+export const ICON_BASE = 0.5;
+export const LABEL_BASE = 0.65;
+export const iconUnit = (dpi: number, scale: number) => markerUnit(dpi, scale) * ICON_BASE;
+export const labelUnitOf = (dpi: number, scale: number) => markerUnit(dpi, scale) * LABEL_BASE;
 
 export const newPlace = (): PlaceSpec => ({ type: "place", name: "Neuer Ort", kind: "place", align: "left" });
 export const newPin = (): PinSpec => ({ type: "pin", name: "Runner", short: "RU", color: "#f5e10a" });

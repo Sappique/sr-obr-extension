@@ -3,7 +3,7 @@ import "../windows/editor.css";
 import type { Align } from "./fan";
 import { placeColor as placeColorOf } from "./layout";
 import { toEntries } from "../sheets/backend";
-import { CrewInfo, livePin, livePlace, MAP_SPEC_KEY, mapRole, MapSpec, PinSpec, PLACE_KINDS, PlaceKind, PlaceSpec, readMapSpec } from "./model";
+import { CrewInfo, LABEL_SNAP_KEY, livePin, livePlace, MAP_SPEC_KEY, mapRole, MapSpec, PinSpec, PLACE_KINDS, PlaceKind, PlaceSpec, readMapSpec } from "./model";
 
 /** Context-menu embed: edits the selected location marker (or its label) or pin. */
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -34,10 +34,13 @@ let itemId: string | null = null;
 let selectedId: string | null = null;
 let loaded: MapSpec | null = null;
 let align: Align = "left";
+let centreSide: "top" | "bottom" = "bottom";
+/** The alignment button that is on: an alignment plus, for centred labels, above or below. */
+const sideNow = () => (align === "center" ? centreSide : align);
 let timer: number | undefined;
 
 function showAlign() {
-  for (const b of alignButtons) b.setAttribute("aria-pressed", String(b.dataset.align === align));
+  for (const b of alignButtons) b.setAttribute("aria-pressed", String(b.dataset.side === sideNow()));
 }
 
 /** Colour choice: the kind's colour, a custom one, or (for homes) a crew sheet's. */
@@ -79,7 +82,7 @@ function current(): MapSpec | null {
   if (!loaded) return null;
   if (loaded.type === "place") {
     return {
-      ...loaded, name: name.value, kind: kind.value as PlaceKind, align,
+      ...loaded, name: name.value, kind: kind.value as PlaceKind, align, centreSide: align === "center" ? centreSide : undefined,
       color: custom || undefined, colorSheet: colorSheet || undefined, broken: broken.checked || undefined,
     };
   }
@@ -91,13 +94,19 @@ function current(): MapSpec | null {
   return { type: "pin", name: name.value.replace(/\n/g, " "), short: initials, color: color.value };
 }
 
-function save() {
+/** Saves the spec; `snap` also asks the sync to move the label next to its icon. */
+async function save(snap = false) {
   clearTimeout(timer);
   timer = undefined;
   const spec = current();
   if (!itemId || !spec) return;
-  void OBR.scene.items.updateItems([itemId], (drafts) => {
-    for (const d of drafts) d.metadata[MAP_SPEC_KEY] = spec;
+  const id = itemId;
+  const plates = snap ? await OBR.scene.items.getItems((i) => i.attachedTo === id && mapRole(i) === "map-label") : [];
+  await OBR.scene.items.updateItems([id, ...plates.map((p) => p.id)], (drafts) => {
+    for (const d of drafts) {
+      if (d.id === id) d.metadata[MAP_SPEC_KEY] = spec;
+      else d.metadata[LABEL_SNAP_KEY] = true;
+    }
   });
 }
 const later = () => {
@@ -131,6 +140,7 @@ async function load(selectedId: string) {
   if (spec.type === "place") {
     kind.value = spec.kind;
     align = spec.align;
+    centreSide = spec.centreSide ?? "bottom";
     showAlign();
     custom = spec.color ?? "";
     colorSheet = spec.colorSheet ?? "";
@@ -149,7 +159,7 @@ OBR.onReady(async () => {
     // Pins have one-line names.
     if (e.key === "Enter" && loaded?.type === "pin") e.preventDefault();
   });
-  for (const f of [color, broken]) f.addEventListener("change", save);
+  for (const f of [color, broken]) f.addEventListener("change", () => void save());
   kind.addEventListener("change", () => {
     // Only homes take a sheet's colour.
     if (kind.value !== "home") colorSheet = "";
@@ -181,12 +191,14 @@ OBR.onReady(async () => {
       save();
     });
   }
-  sheet.addEventListener("change", save);
+  sheet.addEventListener("change", () => void save());
   for (const b of alignButtons) {
     b.addEventListener("click", () => {
-      align = b.dataset.align as Align;
+      const side = b.dataset.side as "left" | "right" | "top" | "bottom";
+      align = side === "top" || side === "bottom" ? "center" : side;
+      if (align === "center") centreSide = side as "top" | "bottom";
       showAlign();
-      save();
+      void save(true);
     });
   }
   window.addEventListener("pagehide", () => {

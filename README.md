@@ -83,10 +83,13 @@ something changes. "Map markers" tool in the toolbar (GM):
 - **Place location:** an icon by kind (Location, Person, Group, Corporation, Restaurant / club,
   Danger, Home, Airport, Harbor, Magical, Other; chosen in `designs/18-location-icons.html`) with a
   name label. The label is its own item attached to the icon: drag it anywhere; it follows the icon.
-  Right-click the icon or the label, "Edit map marker": name (Enter = new line), kind, line
-  alignment (Left / Centre / Right), colour (the kind's, a custom one, or for a home a crew sheet's,
-  which then follows the sheet live) and **Broken** (a rounded strike line in a gap through the
-  icon). A longer name grows away from the aligned edge. An empty name removes the label; a deleted
+  Right-click the icon or the label, "Edit map marker": name (Enter = new line), kind, label
+  position (**Right** / **Top** / **Bottom** / **Left**: moves the label next to the icon with its
+  aligned edge facing it, i.e. Left = left-aligned to the right of the icon, Right = right-aligned to
+  the left, Top and Bottom centred above or below; drag it anywhere afterwards), colour (the kind's,
+  a custom one, or for a home a crew sheet's, which then follows the sheet live) and **Broken** (a
+  rounded strike line in a gap through the icon). A longer name grows away from the aligned edge. An
+  empty name removes the label; a deleted
   label comes back while the name is set. Locking or unlocking the icon or the label does the same to
   the other one.
 - **Place crew pins:** one pin per crew sheet that isn't on the map yet (not the shared sheet),
@@ -97,7 +100,8 @@ something changes. "Map markers" tool in the toolbar (GM):
   and the group is drawn as one thin column of their initials with one pointer (about a second
   after the drop; only while the GM is in the room). Drag one further away to take it out.
 - **Sizes:** "Marker icon size" (location icons and pins) and "Marker text size" (location labels:
-  plate, bar and text) in the extension's popover (GM). A label's distance from its icon scales with
+  plate, bar and text) in the extension's popover (GM). 100 % is half the drawing's design size for
+  icons and 65 % for labels. A label's distance from its icon scales with
   the text size.
 - **Add locations…** (same popover, GM): paste JSON or text, and the locations are added below each
   other in the middle of the view, ready to be placed. JSON is an array of

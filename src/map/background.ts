@@ -1,12 +1,12 @@
 import OBR, { Item, Path, Vector2 } from "@owlbear-rodeo/sdk";
 import { Fonts, loadFonts } from "../core/fonts";
 import { toEntries } from "../sheets/backend";
-import { defaultAnchor, groupSlots, groupTips, LONE_SLOT, moveAnchor, pickSpot, PinSlot, PinTip } from "./fan";
+import { groupSlots, groupTips, LONE_SLOT, moveAnchor, pickSpot, PinSlot, PinTip, snapAnchor } from "./fan";
 import { buildLocation, LABEL_GAP } from "./create";
 import { applyShape, buildLabel, buildPart, buildPin, SYMBOL_PARTS } from "./items";
 import { labelLayout, pinLayout, symbolLayout } from "./layout";
 import {
-  ID, isMapBase, LABEL_KEY, LabelMeta, MAP_HASH_KEY, MAP_ROLE_KEY, MAP_SPEC_KEY, mapRole, markerUnit, newPin, newPlace,
+  ID, isMapBase, LABEL_KEY, LabelMeta, MAP_HASH_KEY, MAP_ROLE_KEY, MAP_SPEC_KEY, mapRole, iconUnit, labelSide, labelUnitOf, LABEL_SNAP_KEY, newPin, newPlace,
   CrewInfo, livePin, livePlace, PART_KEY, PartName, PinSpec, readLabelScale, readMapScale, readMapSpec,
 } from "./model";
 
@@ -27,8 +27,8 @@ let gridDpi = 150;
 let lastTips = new Map<string, Vector2>();
 /** Lock state of location icons and labels after the last sync, to tell which one was just (un)locked. */
 let lastLocked = new Map<string, boolean>();
-const unit = () => markerUnit(gridDpi, mapScale);
-const labelUnit = () => markerUnit(gridDpi, labelScale);
+const unit = () => iconUnit(gridDpi, mapScale);
+const labelUnit = () => labelUnitOf(gridDpi, labelScale);
 
 // ---------------------------------------------------------------------------
 // Sync (GM only, serialized like the window sync)
@@ -174,7 +174,7 @@ async function sync(items: Item[]): Promise<boolean> {
       const part = partOf(base.id, n);
       if (part) follow(part, base.visible);
     }
-    const gap = symbol.half + LABEL_GAP * lu;
+    const gap = LABEL_GAP * lu;
     const name = spec.name.split("\n")[0] || "Ort";
     if (base.name !== name) edit(base.id, (d) => (d.name = name));
 
@@ -188,16 +188,22 @@ async function sync(items: Item[]): Promise<boolean> {
     // A label's offset from its icon scales with the label size.
     const meta: LabelMeta = { unit: lu, align: spec.align, width: layout.width, hash: layout.hash };
     if (!plate) {
-      add.push(...buildLabel(base, layout, defaultAnchor(base.position, spec.align, layout.width, 1, gap), meta));
+      add.push(...buildLabel(base, layout, snapAnchor(base.position, labelSide(spec), layout.height, symbol.half, gap), meta));
       continue;
     }
     const was = plate.metadata[LABEL_KEY] as LabelMeta | undefined;
-    if (was?.hash !== layout.hash || !partOf(plate.id, "bar") || !partOf(plate.id, "text")) {
-      const anchor: Vector2 = was ? moveAnchor(plate.position, base.position, was, meta) : plate.position;
+    // The editor asks for a snap when an alignment button is clicked: the label
+    // then moves next to its icon on that side instead of keeping its spot.
+    const snap = !!plate.metadata[LABEL_SNAP_KEY];
+    if (was?.hash !== layout.hash || snap || !partOf(plate.id, "bar") || !partOf(plate.id, "text")) {
+      const anchor: Vector2 = snap
+        ? snapAnchor(base.position, labelSide(spec), layout.height, symbol.half, gap)
+        : was ? moveAnchor(plate.position, base.position, was, meta) : plate.position;
       edit(plate.id, (d) => {
         applyShape(d as Path, layout.plate);
         d.position = anchor;
         d.metadata[LABEL_KEY] = meta;
+        delete d.metadata[LABEL_SNAP_KEY];
       });
       setPart(plate, "bar", layout.bar, plate.zIndex + 1);
       setPart(plate, "text", layout.text, plate.zIndex + 2);
