@@ -58,13 +58,19 @@ async function drain() {
 
 type Edit = (draft: Item) => void;
 
-const rankOf = (spec: PinSpec) => `${String(spec.order ?? 9999).padStart(5, "0")}|${spec.name}`;
-
-const pinTips = (items: Item[]): PinTip[] =>
-  items.flatMap((i) => {
+/**
+ * Order inside a group: the crew sidebar's order, read live from the pin's
+ * sheet (so reordering the crew reorders the pins), then the name.
+ */
+function pinTips(items: Item[]): PinTip[] {
+  const crewOrder = new Map(toEntries(items).map((e) => [e.itemId, e.sheet.order]));
+  return items.flatMap((i) => {
     const spec = isMapBase(i) ? readMapSpec(i) : undefined;
-    return spec?.type === "pin" ? [{ id: i.id, x: i.position.x, y: i.position.y, rank: rankOf(spec) }] : [];
+    if (spec?.type !== "pin") return [];
+    const order = (spec.sheet && crewOrder.get(spec.sheet)) ?? spec.order ?? 9999;
+    return [{ id: i.id, x: i.position.x, y: i.position.y, rank: `${String(order).padStart(5, "0")}|${spec.name}` }];
   });
+}
 
 /** Where every pin stands and how it is drawn: pins on one spot snap together. */
 function planPins(tips: PinTip[], u: number) {
