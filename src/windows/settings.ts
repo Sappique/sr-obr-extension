@@ -1,6 +1,5 @@
 import OBR from "@owlbear-rodeo/sdk";
 import { UI_SCALE } from "../core/style";
-import { applyTempSettings, BROKEN_STYLE_KEY, BROKEN_STYLES, CORP_COLOR_KEY, CORP_COLORS, TEMP } from "../map/layout";
 import { IMPORT_MODAL_ID, LABEL_SCALE_KEY, MAP_SCALE, MAP_SCALE_KEY, readLabelScale, readMapScale } from "../map/model";
 import { ANIMATED_KEY, readAnimated, readUiScale, UI_SCALE_KEY, writeAnimated } from "./items";
 
@@ -20,19 +19,6 @@ for (const s of [mapSlider, labelSlider]) {
   s.max = String(MAP_SCALE.max);
   s.step = String(MAP_SCALE.step);
 }
-// TEMP: choices while the broken style and corporation colour are being picked.
-const brokenStyle = document.getElementById("brokenStyle") as HTMLSelectElement;
-const corpColor = document.getElementById("corpColor") as HTMLSelectElement;
-for (const b of BROKEN_STYLES) brokenStyle.add(new Option(b.label, b.id));
-for (const c of CORP_COLORS) corpColor.add(new Option(`● ${c.label}`, c.id));
-function showTemp(metadata: Record<string, unknown>) {
-  applyTempSettings(metadata);
-  brokenStyle.value = TEMP.broken;
-  corpColor.value = TEMP.corp;
-  corpColor.style.color = TEMP.corp;
-}
-for (const o of corpColor.options) o.style.color = o.value;
-
 function showLabel(scale: number) {
   labelSlider.value = String(scale);
   labelValue.textContent = `${Math.round(scale * 100)} %`;
@@ -60,7 +46,7 @@ function applyRole(role: string) {
 }
 
 OBR.onReady(async () => {
-  void OBR.action.setHeight(390);
+  void OBR.action.setHeight(270);
   applyRole(await OBR.player.getRole());
   OBR.player.onChange((player) => applyRole(player.role));
 
@@ -79,8 +65,6 @@ OBR.onReady(async () => {
   labelSlider.addEventListener("change", () => {
     void OBR.scene.setMetadata({ [LABEL_SCALE_KEY]: Number(labelSlider.value) });
   });
-  brokenStyle.addEventListener("change", () => void OBR.scene.setMetadata({ [BROKEN_STYLE_KEY]: brokenStyle.value }));
-  corpColor.addEventListener("change", () => void OBR.scene.setMetadata({ [CORP_COLOR_KEY]: corpColor.value }));
   document.getElementById("import")!.addEventListener("click", () => {
     void OBR.modal.open({ id: IMPORT_MODAL_ID, url: "/map-import.html", width: 620, height: 520 });
   });
@@ -99,7 +83,6 @@ OBR.onReady(async () => {
       show(readUiScale(metadata));
       showMap(readMapScale(metadata));
       showLabel(readLabelScale(metadata));
-      showTemp(metadata);
     }
   };
   OBR.scene.onReadyChange(load);
@@ -108,6 +91,5 @@ OBR.onReady(async () => {
     if (document.activeElement !== slider) show(readUiScale(metadata));
     if (document.activeElement !== mapSlider) showMap(readMapScale(metadata));
     if (document.activeElement !== labelSlider) showLabel(readLabelScale(metadata));
-    showTemp(metadata);
   });
 });

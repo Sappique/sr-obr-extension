@@ -1,7 +1,7 @@
 // Run with: npm test
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { body, cutBand, ICONS, offset, shape, slash, SLASH } from "./icons.ts";
+import { bandInside, body, ICONS, offset, shape, slash, SLASH } from "./icons.ts";
 
 const signedArea = (p: [number, number][]) => p.reduce((s, [x, y], i) => { const [u, v] = p[(i + 1) % p.length]; return s + x * v - u * y; }, 0) / 2;
 
@@ -21,13 +21,12 @@ test("the outline ring is the outer edge minus the inner edge", () => {
   assert.deepEqual(inside[0].p, ring[1].p.slice().reverse());
 });
 
-test("the broken gap removes everything near the strike line", () => {
+test("the black band stays within the band around the strike line", () => {
   const half = SLASH.half + SLASH.gap;
   for (const [id, make] of Object.entries(ICONS)) {
-    const { ring, inside } = body(make());
-    for (const piece of cutBand([...ring, ...inside])) {
-      for (const [x, y] of piece.p) assert.ok(Math.abs((x + y) * Math.SQRT1_2) >= half - 0.15, `${id}: point in the gap`);
-    }
+    const band = bandInside(make());
+    assert.equal(band.length, 1, id);
+    for (const [x, y] of band[0].p) assert.ok(Math.abs((x + y) * Math.SQRT1_2) <= half + 0.15, `${id}: point outside the band`);
   }
 });
 

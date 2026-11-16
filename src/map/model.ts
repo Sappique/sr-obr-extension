@@ -1,5 +1,5 @@
 import type { Item } from "@owlbear-rodeo/sdk";
-import type { Align, LabelSide, LabelState } from "./fan";
+import type { Align, LabelSide, LabelState } from "./placement";
 
 /**
  * Map markers. A location marker is its symbol (the item you drag) with a

@@ -1,7 +1,7 @@
 // Run with: npm test
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { boxLeft, groupSlots, groupTips, LONE_SLOT, moveAnchor, pickSpot, PIN, snapAnchor } from "./fan.ts";
+import { boxLeft, groupSlots, groupTips, LONE_SLOT, moveAnchor, pickSpot, PIN, snapAnchor } from "./placement.ts";
 
 const unit = 1.5;
 const tip = (id: string, x: number, y: number, rank = id) => ({ id, x, y, rank });

@@ -1,10 +1,10 @@
 import OBR, { Item, Path, Vector2 } from "@owlbear-rodeo/sdk";
 import { Fonts, loadFonts } from "../core/fonts";
 import { toEntries } from "../sheets/backend";
-import { groupSlots, groupTips, LONE_SLOT, moveAnchor, pickSpot, PinSlot, PinTip, snapAnchor } from "./fan";
+import { groupSlots, groupTips, LONE_SLOT, moveAnchor, pickSpot, PinSlot, PinTip, snapAnchor } from "./placement";
 import { buildLocation, LABEL_GAP } from "./create";
 import { applyShape, buildLabel, buildPart, buildPin, SYMBOL_PARTS } from "./items";
-import { applyTempSettings, labelLayout, pinLayout, symbolLayout } from "./layout";
+import { labelLayout, pinLayout, symbolLayout } from "./layout";
 import {
   ID, isMapBase, LABEL_KEY, LabelMeta, MAP_HASH_KEY, MAP_ROLE_KEY, MAP_SPEC_KEY, mapRole, iconUnit, markerUnit, labelSide, labelUnitOf, LABEL_SNAP_KEY, newPin, newPlace,
   CrewInfo, livePin, livePlace, PART_KEY, PartName, PinSpec, readLabelScale, readMapScale, readMapSpec,
@@ -262,7 +262,7 @@ async function placeLocation(position: Vector2): Promise<Item[]> {
   return buildLocation(await loadFonts(), newPlace(), position, { icon: unit(), label: labelUnit() }, new Map());
 }
 
-/** Pins for the given specs around one point, already fanned out together. */
+/** Pins for the given specs on one spot, drawn as one group. */
 async function placePins(specs: PinSpec[], at: Vector2): Promise<Item[]> {
   const fonts = await loadFonts();
   const u = pinUnit();
@@ -352,7 +352,6 @@ OBR.onReady(async () => {
     const metadata = await OBR.scene.getMetadata();
     mapScale = readMapScale(metadata);
     labelScale = readLabelScale(metadata);
-    applyTempSettings(metadata);
     gridDpi = await OBR.scene.grid.getDpi();
     schedule(await OBR.scene.items.getItems());
     unsubscribe = OBR.scene.items.onChange(schedule);
@@ -362,8 +361,7 @@ OBR.onReady(async () => {
   OBR.scene.onMetadataChange(async (metadata) => {
     const next = readMapScale(metadata);
     const nextLabel = readLabelScale(metadata);
-    const tempChanged = applyTempSettings(metadata);
-    if (next === mapScale && nextLabel === labelScale && !tempChanged) return;
+    if (next === mapScale && nextLabel === labelScale) return;
     mapScale = next;
     labelScale = nextLabel;
     schedule(await OBR.scene.items.getItems());

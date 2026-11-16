@@ -1,7 +1,7 @@
 import OBR from "@owlbear-rodeo/sdk";
 import "../windows/editor.css";
-import type { Align } from "./fan";
-import { applyTempSettings, placeColor as placeColorOf } from "./layout";
+import type { Align } from "./placement";
+import { placeColor as placeColorOf } from "./layout";
 import { toEntries } from "../sheets/backend";
 import { CrewInfo, LABEL_SNAP_KEY, livePin, livePlace, MAP_SPEC_KEY, mapRole, MapSpec, PinSpec, PLACE_KINDS, PlaceKind, PlaceSpec, readMapSpec } from "./model";
 
@@ -124,7 +124,6 @@ async function load(selectedId: string) {
   loaded = spec;
   name.value = spec.name;
   const items = await OBR.scene.items.getItems();
-  applyTempSettings(await OBR.scene.getMetadata());
   crew = new Map(
     toEntries(items)
       .filter((e) => !e.error && !e.sheet.shared)

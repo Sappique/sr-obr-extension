@@ -88,9 +88,8 @@ something changes. "Map markers" tool in the toolbar (GM):
   aligned edge facing it, i.e. Left = left-aligned to the right of the icon, Right = right-aligned to
   the left, Top and Bottom centred above or below; drag it anywhere afterwards), colour (the kind's,
   a custom one, or for a home a crew sheet's, which then follows the sheet live) and **Broken** (a
-  rounded strike line in a gap through the icon). A longer name grows away from the aligned edge. An
-  empty name removes the label; a deleted
-  label comes back while the name is set. Locking, unlocking, hiding or showing the icon or the label
+  rounded strike line on a black band across the icon). A longer name grows away from the aligned
+  edge. An empty name removes the label; a deleted label comes back while the name is set. Locking, unlocking, hiding or showing the icon or the label
   does the same to
   the other one.
 - **Place crew pins:** one pin per crew sheet that isn't on the map yet (not the shared sheet),
@@ -109,7 +108,5 @@ something changes. "Map markers" tool in the toolbar (GM):
   `{"name", "kind", "align"?, "color"?, "broken"?, "sheet"?}` (`sheet` = crew handle whose colour a
   home takes); text is one `kind: name` (or just a name) per line, `|` for a line break.
   `designs/locations-import.json` holds all locations from the mock data.
-- **Temporary (while choosing):** the popover has a "Temporary" box with the broken style (gap,
-  black, or no cut) and the corporation colour. Remove both once decided (`TEMP` in `src/map/layout.ts`).
 - **Layers:** pins are on Character (players can move them), locations and labels on Prop.
 

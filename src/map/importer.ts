@@ -8,7 +8,7 @@
  *   color ("#rrggbb"), sheet (crew handle whose colour a home takes), broken (true/false).
  * Text: one location per line, "kind: name" or just "name"; "|" makes a line break.
  */
-import type { Align } from "./fan";
+import type { Align } from "./placement";
 import { PLACE_KINDS, type PlaceKind, type PlaceSpec } from "./model.ts";
 
 export interface ImportEntry {
