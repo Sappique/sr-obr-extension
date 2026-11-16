@@ -34,7 +34,7 @@ import {
   toObr,
 } from "./items";
 import { applyWrites, frameBounds, stableTop, TopMemory } from "./frameState";
-import { hashString, layoutWindow, STYLE_VERSION, WindowKind, WindowSpec } from "./layout";
+import { freeHeight, hashString, layoutWindow, STYLE_VERSION, WindowKind, WindowSpec } from "./layout";
 import { SAMPLES } from "./samples";
 import { toEntries } from "../sheets/backend";
 import { extUrl } from "../core/url";
@@ -98,6 +98,10 @@ const crewColors = (items: Item[]): Record<string, string> =>
 const withCrew = (spec: WindowSpec, crew: Record<string, string>): WindowSpec =>
   spec.kind === "calendar" ? { ...spec, crewColors: crew } : spec;
 
+/** What a frame's parts were drawn from; a free-height window adds its height. */
+const renderKey = (spec: WindowSpec, width: number, height: number) =>
+  hashString(JSON.stringify([spec, width, uiScale, STYLE_VERSION, ...(freeHeight(spec) ? [Math.round(height)] : [])]));
+
 async function sync(items: Item[]): Promise<boolean> {
   const t = windowTokens(uiScale);
   const partsOf = new Map<string, Path[]>();
@@ -124,13 +128,15 @@ async function sync(items: Item[]): Promise<boolean> {
     const bounds = frameBounds(frame);
     const scaled = frame.scale.x !== 1 || frame.scale.y !== 1;
     const width = Math.max(t.minWidth, Math.round(bounds.w));
-    // Only the height snaps back: x and width keep what the handle did.
+    const spec = withCrew(readSpec(frame), crew);
+    // A blank window keeps the height the handle gave it, from either edge.
+    const free = freeHeight(spec);
+    // Otherwise only the height snaps back: x and width keep what the handle did.
     const origin = {
       x: bounds.x,
-      y: frame.rotation === 0 ? stableTop(bounds.y, bounds.h, tops.get(frame.id)) : bounds.y,
+      y: frame.rotation === 0 && !free ? stableTop(bounds.y, bounds.h, tops.get(frame.id)) : bounds.y,
     };
-    const spec = withCrew(readSpec(frame), crew);
-    const key = hashString(JSON.stringify([spec, width, uiScale, STYLE_VERSION]));
+    const key = renderKey(spec, width, bounds.h);
     const state = frame.metadata[RENDER_KEY] as RenderState | undefined;
     const parts = partsOf.get(frame.id) ?? [];
     let height = bounds.h;
@@ -144,7 +150,7 @@ async function sync(items: Item[]): Promise<boolean> {
 
     if (scaled || !shapeOk || state?.key !== key || state.parts !== parts.length) {
       fonts ??= await loadFonts();
-      const layout = layoutWindow(fonts, spec, width, uiScale);
+      const layout = layoutWindow(fonts, spec, width, uiScale, free ? bounds.h : undefined);
       height = layout.height;
 
       // Reuse identical outlines, so an edit only sends what really changed.
@@ -385,16 +391,19 @@ async function syncFlow(items: Item[]) {
  * A window with its parts already laid out, exactly as sync would render it,
  * so creating one costs a single write instead of several sync round trips.
  */
-async function buildWindow(position: Vector2, spec: WindowSpec, visible = true, designWidth?: number): Promise<Item[]> {
+async function buildWindow(
+  position: Vector2, spec: WindowSpec, visible = true, designWidth?: number, designHeight?: number,
+): Promise<Item[]> {
   const t = windowTokens(uiScale);
   const fonts = await loadFonts();
-  // designWidth is in design px (x SCALE x window scale = scene units).
+  // Design px x SCALE x window scale = scene units.
   const width = Math.max(t.minWidth, Math.round(designWidth ? designWidth * SCALE * uiScale : t.defaultWidth));
-  const layout = layoutWindow(fonts, spec, width, uiScale);
+  const height = designHeight ? Math.round(designHeight * SCALE * uiScale) : undefined;
+  const layout = layoutWindow(fonts, spec, width, uiScale, height);
   const frame = buildFrame(position, windowOutline(width, layout.height, t.cut), spec, t);
   frame.visible = visible;
   frame.metadata[RENDER_KEY] = {
-    key: hashString(JSON.stringify([spec, width, uiScale, STYLE_VERSION])),
+    key: renderKey(spec, width, layout.height),
     parts: layout.parts.length,
     height: layout.height,
   } satisfies RenderState;
@@ -412,6 +421,7 @@ function createTool() {
   const modes: [WindowKind, string, string][] = [
     ["markdown", MODE_ID, "window"],
     ["calendar", `${ID}/calendar-place`, "calendar"],
+    ["blank", `${ID}/blank-place`, "blank"],
   ];
   for (const [kind, id, icon] of modes) {
     OBR.tool.createMode({
@@ -421,7 +431,7 @@ function createTool() {
       async onToolClick(_, event) {
         const sample = SAMPLES[kind];
         const spec = kind === "markdown" ? DEFAULT_SPEC : sample.spec;
-        const built = await buildWindow(event.pointerPosition, spec, true, sample.width);
+        const built = await buildWindow(event.pointerPosition, spec, true, sample.width, sample.height);
         await OBR.scene.items.addItems(built);
         void OBR.player.select([built[0].id]);
         await OBR.tool.activateTool("rodeo.owlbear.tool/move").catch(() => undefined);

@@ -6,7 +6,11 @@ export interface KindEditor {
   help: string;
 }
 
+/** Kinds without a text field. */
+export const NO_TEXT: WindowKind[] = ["blank"];
+
 export const KIND_EDITORS: Record<WindowKind, KindEditor> = {
+  blank: { label: "", help: "" },
   markdown: {
     label: "Text (Markdown)",
     help: "# H1, ## H2, ### H3 (with line)\n**bold**  *italic*  ~~strike~~\n- bullet   1. numbered   - [x] task\n> quote\n> [!Reward] 6.000 ¥ / P\n> callout body",

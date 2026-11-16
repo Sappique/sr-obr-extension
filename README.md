@@ -46,6 +46,16 @@ Callouts (add types in `src/core/callouts.ts`):
 > Normal Markdown body.
 ```
 
+## Blank window
+
+A window kind with only the title bar and an empty body, e.g. for an on-the-fly battle map.
+Window tool → "Place blank window".
+
+- **Size:** drag any handle; unlike the other kinds the height stays where you leave it.
+- **Layer:** its frame lies on the Map layer (the others on Prop), so drawings, props, tokens and
+  the grid stay above the body. Map images added later also go above it.
+- "Edit window" has title, tag and variant only.
+
 ## Calendar (`src/calendar`)
 
 A window kind: same frame, shadow, resize, scale, links and visibility as any window, with its

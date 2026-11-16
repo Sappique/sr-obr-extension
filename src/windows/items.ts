@@ -81,6 +81,11 @@ export function readSpec(frame: Item): WindowSpec {
 const LAYERS: Record<PartLayer, Layer> = { shadow: "DRAWING", base: "ATTACHMENT", fill: "ATTACHMENT", text: "NOTE" };
 /** Frames sit on one layer so players can be denied it in the room permissions. */
 export const FRAME_LAYER: Layer = "PROP";
+/**
+ * A blank window is a surface to build on (a battle map): its frame lies on the
+ * Map layer, so drawings, props, tokens and the grid stay above it.
+ */
+export const frameLayer = (spec: WindowSpec): Layer => (spec.kind === "blank" ? "MAP" : FRAME_LAYER);
 
 export function outlinePoints(points: Pt[]): Vector2[] {
   return points.map(([x, y]) => ({ x, y }));
@@ -98,7 +103,7 @@ export function buildFrame(position: Vector2, points: Pt[], spec: WindowSpec, t:
     .strokeColor(COLOR.yellow)
     .strokeOpacity(1)
     .strokeWidth(t.border)
-    .layer(FRAME_LAYER)
+    .layer(frameLayer(spec))
     .metadata({ [ROLE_KEY]: "frame", [SPEC_KEY]: spec })
     .build();
 }
@@ -110,6 +115,10 @@ export function buildPart(frame: Curve, part: Part, position: Vector2): Path {
   // Items in one layer sort by zIndex, which defaults to creation time. A
   // regenerated band must not end up above a reused tag fill.
   if (part.layer === "base") builder.zIndex(0).disableAutoZIndex(true);
+  // Under a Map-layer frame the shadow goes below it on the same layer, or its
+  // stripes would cover the whole body from the Drawing layer.
+  const underMap = frame.layer === "MAP" && part.layer === "shadow";
+  if (underMap) builder.zIndex(0).disableAutoZIndex(true);
   return builder
     .name("Window part")
     .position(position)
@@ -120,7 +129,7 @@ export function buildPart(frame: Curve, part: Part, position: Vector2): Path {
     .fillOpacity(part.opacity)
     .strokeWidth(0)
     .strokeOpacity(0)
-    .layer(LAYERS[part.layer])
+    .layer(underMap ? "MAP" : LAYERS[part.layer])
     .attachedTo(frame.id)
     .locked(true)
     .disableHit(true)

@@ -25,7 +25,8 @@ async function main() {
     const width = Number(params.get("w") ?? sample.width) * SCALE * uiScale;
     // No crew sheets here: the HANDOFF runner colours stand in for them.
     const crewColors = { Phlox: RUNNER_COLORS.phlox, Hawk: RUNNER_COLORS.hawk, Peppermint: RUNNER_COLORS.peppermint };
-    const layout = layoutWindow(fonts, { ...sample.spec, crewColors }, width, uiScale);
+    const height = sample.height && sample.height * SCALE * uiScale;
+    const layout = layoutWindow(fonts, { ...sample.spec, crewColors }, width, uiScale, height);
     const pad = 40;
     const points = windowOutline(width, layout.height, W.cut).map((p) => p.join(",")).join(" ");
     let svg = `<g transform="translate(${pad} ${pad})">`;

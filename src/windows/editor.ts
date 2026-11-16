@@ -1,7 +1,7 @@
 import OBR from "@owlbear-rodeo/sdk";
 import { readSpec, SPEC_KEY } from "./items";
 import { WindowKind, WindowSpec } from "./layout";
-import { KIND_EDITORS } from "./kinds";
+import { KIND_EDITORS, NO_TEXT } from "./kinds";
 import { parseDate, shiftDay } from "../calendar/format";
 import "./editor.css";
 
@@ -15,6 +15,8 @@ const textLabel = get<HTMLSpanElement>("textLabel");
 const help = get<HTMLPreElement>("help");
 const todayRow = get<HTMLDivElement>("todayRow");
 const today = get<HTMLInputElement>("today");
+const textBox = get<HTMLLabelElement>("textBox");
+const helpBox = get<HTMLDetailsElement>("helpBox");
 
 let kind: WindowKind = "markdown";
 
@@ -23,6 +25,7 @@ function showKind(next: WindowKind) {
   const editor = KIND_EDITORS[kind];
   textLabel.textContent = editor.label;
   todayRow.hidden = kind !== "calendar";
+  textBox.hidden = helpBox.hidden = NO_TEXT.includes(kind);
   help.textContent = editor.help;
 }
 

@@ -23,9 +23,13 @@ import { baselineOffset, drawText, measureText } from "../core/vectorText";
  * becomes its own parts with coordinates relative to the block, so edits and
  * reflows reuse unchanged outlines and only move them.
  */
-/** What the body shows. "markdown" is the plain text window; the others parse
- * the same text field with their own line format (see src/<kind>/format.ts). */
-export type WindowKind = "markdown" | "calendar";
+/** What the body shows. "markdown" is the plain text window; "blank" has no body
+ * and a height set by hand (an on-the-fly battle map); the others parse the same
+ * text field with their own line format (see src/<kind>/format.ts). */
+export type WindowKind = "markdown" | "calendar" | "blank";
+
+/** Kinds whose height is dragged like the width instead of following the content. */
+export const freeHeight = (spec: WindowSpec) => spec.kind === "blank";
 
 export interface WindowSpec {
   title: string;
@@ -60,7 +64,7 @@ export interface WindowLayout {
 const MAX_COMMANDS_PER_PART = 3000;
 
 type BodyRenderer = (ctx: BodyContext, spec: WindowSpec, x: number, y: number, width: number) => number;
-const BODIES: Record<Exclude<WindowKind, "markdown">, BodyRenderer> = {
+const BODIES: Record<Exclude<WindowKind, "markdown" | "blank">, BodyRenderer> = {
   calendar: calendarBody,
 };
 
@@ -564,8 +568,9 @@ function header(
   return height;
 }
 
+/** `height` (scene units) is used by free-height kinds only; it is kept above the header. */
 export function layoutWindow(
-  fonts: Fonts, spec: WindowSpec, width: number, scale: number = UI_SCALE.default,
+  fonts: Fonts, spec: WindowSpec, width: number, scale: number = UI_SCALE.default, height?: number,
 ): WindowLayout {
   const t = windowTokens(scale);
   const canvas = new Canvas();
@@ -581,17 +586,19 @@ export function layoutWindow(
   const bodyX = b.padX;
   const bodyY = headerHeight + b.padTop;
   const bodyWidth = width - 2 * b.padX;
-  const end = kind === "markdown"
-    ? renderer.blocks(parseMarkdown(spec.markdown), bodyX, bodyY, bodyWidth, base)
-    : BODIES[kind](bodyContext(fonts, canvas, renderer, t, scale, base), spec, bodyX, bodyY, bodyWidth);
-  const height = Math.max(end + b.padBottom, t.cut * 2 + headerHeight);
+  const minHeight = t.cut * 2 + headerHeight;
+  let end: number;
+  if (kind === "blank") end = Math.max(height ?? 0, minHeight) - b.padBottom;
+  else if (kind === "markdown") end = renderer.blocks(parseMarkdown(spec.markdown), bodyX, bodyY, bodyWidth, base);
+  else end = BODIES[kind](bodyContext(fonts, canvas, renderer, t, scale, base), spec, bodyX, bodyY, bodyWidth);
+  const outer = Math.max(end + b.padBottom, minHeight);
   canvas.flushWindowLevel();
 
   const s = t.shadow;
-  const plate = windowOutline(width, height, t.cut).map(
+  const plate = windowOutline(width, outer, t.cut).map(
     ([x, y]) => [x - s.offset, y + s.offset] as [number, number],
   );
   canvas.add("shadow", COLOR.yellow, s.opacity, hatch(plate, s.stripe, s.period));
   canvas.flush(0);
-  return { height, parts: canvas.parts };
+  return { height: outer, parts: canvas.parts };
 }
