@@ -5,7 +5,7 @@ import { defaultAnchor, groupSlots, groupTips, LONE_SLOT, moveAnchor, pickSpot, 
 import { applyShape, buildLabel, buildPart, buildPin, buildSymbol } from "./items";
 import { labelLayout, pinLayout, symbolLayout } from "./layout";
 import {
-  ID, isMapBase, LABEL_KEY, LabelMeta, MAP_HASH_KEY, MAP_ROLE_KEY, mapRole, markerUnit, newPin, newPlace,
+  ID, isMapBase, LABEL_KEY, LabelMeta, MAP_HASH_KEY, MAP_ROLE_KEY, MAP_SPEC_KEY, mapRole, markerUnit, newPin, newPlace,
   CrewInfo, livePin, PART_KEY, PartName, PinSpec, readMapScale, readMapSpec,
 } from "./model";
 
@@ -129,6 +129,9 @@ async function sync(items: Item[]): Promise<boolean> {
 
     if (raw.type === "pin") {
       const spec = livePin(raw, crew);
+      // Keep the linked pin's copy of its sheet current, so it still looks
+      // right if the sheet is deleted later.
+      if (JSON.stringify(spec) !== JSON.stringify(raw)) edit(base.id, (d) => (d.metadata[MAP_SPEC_KEY] = spec));
       const { spot, slot } = pins.get(base.id) ?? { spot: base.position, slot: LONE_SLOT };
       // Moving the pin carries its initials along.
       if (spot.x !== base.position.x || spot.y !== base.position.y) edit(base.id, (d) => (d.position = spot));
